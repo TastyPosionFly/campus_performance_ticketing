@@ -1,0 +1,10 @@
+CREATE TABLE user_organization (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+
+    user_id BIGINT NOT NULL COMMENT '用户ID',
+    organization_id BIGINT NOT NULL COMMENT '组织ID',
+
+    role VARCHAR(20) COMMENT '组织内角色：LEADER / MEMBER',
+
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '加入组织时间'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户-组织关联表';

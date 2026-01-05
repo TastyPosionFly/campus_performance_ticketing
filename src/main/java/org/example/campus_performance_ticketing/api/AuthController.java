@@ -7,6 +7,8 @@ import org.example.campus_performance_ticketing.logic.dto.LoginRequest;
 import org.example.campus_performance_ticketing.logic.dto.LoginResult;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.InputStream;
@@ -27,6 +29,8 @@ public class AuthController {
     @Value("${user.avatar.base-url}")
     private String avatarBaseUrl;
 
+    private static final Logger logger = LoggerFactory.getLogger(AuthController.class);
+
     public AuthController(UserService userService) {
         this.userService = userService;
     }
@@ -41,7 +45,19 @@ public class AuthController {
 
         String avatarPath = null;
 
-        if (request.getAvatar() != null && request.getAvatar().startsWith("http")) {
+        // 先从数据库检查是否已有头像路径（需在 UserService 中实现：String getAvatarPathByOpenid(String openid)）
+        if (request.getOpenid() != null) {
+            try {
+                avatarPath = userService.getAvatarPathByOpenid(request.getOpenid());
+            } catch (Exception e) {
+                logger.error("获取头像路径失败，openid={}", request.getOpenid(), e);
+                return ApiResponse.fail("获取头像失败：" + e.getMessage());
+            }
+        }
+
+        logger.info("avatarPath from DB: {}", avatarPath);
+
+        if (request.getAvatar() != null && request.getAvatar().startsWith("http") && (avatarPath == null || avatarPath.isBlank())) {
             try {
                 Files.createDirectories(Paths.get(avatarUploadDir));
 

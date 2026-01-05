@@ -5,6 +5,7 @@ import org.example.campus_performance_ticketing.logic.dto.ApiResponse;
 import org.example.campus_performance_ticketing.logic.dto.LoginResult;
 import org.example.campus_performance_ticketing.model.UserInfo;
 import org.example.campus_performance_ticketing.util.JwtTokenUtil;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,6 +25,9 @@ public class UserService {
     private final JwtTokenUtil jwtTokenUtil;
 
     private static final Logger logger = LoggerFactory.getLogger(UserService.class);
+
+    @Value("${user.avatar.upload-dir}")
+    private String avatarUploadDir;
 
     public UserService(UserRepository userRepository, JwtTokenUtil jwtTokenUtil) {
         this.userRepository = userRepository;
@@ -66,6 +70,12 @@ public class UserService {
             }
 
             user.setLastLoginTime(LocalDateTime.now());
+
+            // 更新头像（只有传入新的 avatar 且不同于现有值才更新）
+            if (avatar != null && !avatar.equals(user.getAvatar())) {
+                user.setAvatar(avatar);
+            }
+
             user = userRepository.save(user);
 
             String token = jwtTokenUtil.generateTokenWithStatus(
@@ -93,7 +103,34 @@ public class UserService {
         }
     }
 
+        /**
+         * 根据 openid 获取头像路径
+         */
+        public String getAvatarPathByOpenid(String openid) {
+            if (!StringUtils.hasText(openid)) {
+                return null;
+            }
+            try {
+                String avatar_path = userRepository.findByOpenid(openid)
+                        .map(UserInfo::getAvatar)
+                        .orElse(null);
 
+                // 检查该路径是否存在
+                if (avatar_path != null) {
+                    java.nio.file.Path path = java.nio.file.Paths.get("./" + avatar_path);
+                    logger.info("Checking avatar path: {}", path.toString());
+                    logger.info("java.nio.file.Files.exists: {}", java.nio.file.Files.exists(path));
+                    if (!java.nio.file.Files.exists(path)) {
+                        return null;
+                    }
+                }
+
+                return avatar_path;
+            } catch (Exception e) {
+                logger.warn("getAvatarPathByOpenid failed for openid={}", openid, e);
+                return null;
+            }
+        }
 
     /**
      * 获取当前登录用户信息

@@ -55,8 +55,6 @@ public class AuthController {
             }
         }
 
-        logger.info("avatarPath from DB: {}", avatarPath);
-
         if (request.getAvatar() != null && request.getAvatar().startsWith("http") && (avatarPath == null || avatarPath.isBlank())) {
             try {
                 Files.createDirectories(Paths.get(avatarUploadDir));

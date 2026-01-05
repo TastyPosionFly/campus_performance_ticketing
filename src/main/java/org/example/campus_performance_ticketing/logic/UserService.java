@@ -118,8 +118,6 @@ public class UserService {
                 // 检查该路径是否存在
                 if (avatar_path != null) {
                     java.nio.file.Path path = java.nio.file.Paths.get("./" + avatar_path);
-                    logger.info("Checking avatar path: {}", path.toString());
-                    logger.info("java.nio.file.Files.exists: {}", java.nio.file.Files.exists(path));
                     if (!java.nio.file.Files.exists(path)) {
                         return null;
                     }

@@ -96,6 +96,13 @@
             <artifactId>spring-boot-starter-logging</artifactId>
         </dependency>
 
+        <!-- 添加 Jackson Databind（包含 ObjectMapper, JsonNode 等） -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>2.15.2</version>
+        </dependency>
+
     </dependencies>
 
     <build>

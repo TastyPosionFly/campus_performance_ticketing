@@ -52,7 +52,7 @@ application*-prod.properties
 /compose.yaml
 
 ## server ##
-./tastypoisonfly.pem
+/tastypoisonfly.pem
 
 ## document ##
 /document/UML/

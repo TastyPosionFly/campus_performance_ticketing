@@ -54,5 +54,9 @@ application*-prod.properties
 ## server ##
 /tastypoisonfly.pem
 
+## Testing Data ##
+/data/avatar/*
+/data/organization_photos/*
+
 ## document ##
 /document/UML/

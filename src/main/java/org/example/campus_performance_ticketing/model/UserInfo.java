@@ -61,7 +61,7 @@ public class UserInfo {
 
     /**
      * 系统角色
-     * USER / ORGANIZER / VENUE_ADMIN / ADMIN / SUPER_ADMIN
+     * USER / VENUE_ADMIN / ADMIN / SUPER_ADMIN
      */
     @Column(length = 20)
     private String role;

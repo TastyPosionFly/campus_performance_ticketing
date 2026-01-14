@@ -19,7 +19,7 @@ import java.time.LocalDateTime;
 @Table(name = "user_info")
 public class UserInfo {
 
-    /** 用户主键ID */
+    /** 用户主键 ID */
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

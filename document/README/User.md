@@ -1,227 +1,183 @@
-# 校园活动售票系统接口文档
+# 校园演出订票系统后端接口文档
 
-本文档包含系统主要接口说明，包括用户登录/注册、用户资料管理和管理员用户管理接口。
+本项目为校园演出订票系统后端，采用 Spring Boot + JPA 实现，支持多角色认证、权限控制、资料管理以及智能头像处理等功能。本文档着重介绍主要接口使用方法及其实现设计，便于后续理解和说明系统结构。
 
 ---
 
-## 1. AuthController 接口说明（登录 / 注册）
+## 一、系统结构与分层设计
 
-### 基础信息
-- Controller 包路径：`org.example.campus_performance_ticketing.api`
-- 请求前缀：`/api/auth`
-- 认证方式：登录成功后返回 JWT Token
-- 返回格式：统一使用 `ApiResponse<T>`
+- 接口层（Controller）：负责接收HTTP请求、参数解析、权限校验、响应结果，仅做请求分发。
+- 业务逻辑层（Service）：负责所有业务判断、权限检查、数据聚合、头像处理等具体操作。
+- 数据访问层（Repository/DAO）：通过JPA实现数据库相关的操作。
+- DTO层：定义对外暴露和分级返回的数据结构，保证敏感信息有针对性地隔离。
+- 工具类层（Util）：如头像URL处理、文件相关辅助方法。
 
-### 配置说明
+---
 
-```properties
-user.avatar.upload-dir=./data/avatar
-user.avatar.base-url=http://localhost:8080
-```
+## 二、接口使用说明
 
-### 登录 / 注册接口
-- 接口地址：`POST /api/auth/login`
-- 请求参数（JSON）：
+### 1. 用户认证与注册
 
+#### 登录 / 注册
+
+- **请求路径**: `POST /api/auth/login`
+- **说明**: 支持OpenID，首次登录自动注册，头像字段支持网络图片自动下载保存本地。
+
+**请求参数（JSON）**
 ```json
 {
-  "openid": "string",
-  "nickname": "string",
-  "avatar": "https://avatar-url"
+  "openid": "openid_001",
+  "nickname": "Alice",
+  "avatar": "https://avatars.githubusercontent.com/u/1?v=4"
 }
 ```
 
-### 头像处理逻辑
-- 后端下载第三方头像
-- 使用 Thumbnailator 缩放至 200×200
-- UUID 命名
-- 数据库存储相对路径
-
-### 返回示例
-
+**返回参数**
 ```json
 {
-  "code": 0,
-  "message": "success",
+  "success": true,
   "data": {
     "token": "jwt-token",
-    "userId": 1,
-    "avatar": "http://localhost:8080/data/avatar/xxx.jpg"
-  }
-}
-```
-
-### 依赖
-
-```xml
-<dependency>
-  <groupId>net.coobird</groupId>
-  <artifactId>thumbnailator</artifactId>
-  <version>0.4.20</version>
-</dependency>
-```
-
-### 目录结构
-
-```
-data/avatar/
-```
-
----
-
-## 2. UserController 接口说明（用户资料管理）
-
-### 基础信息
-- Controller 包路径：`org.example.campus_performance_ticketing.api`
-- 请求前缀：`/api/users`
-- 认证方式：JWT Token
-- 返回格式：统一使用 `ApiResponse<T>`
-
-### 接口列表
-1. 获取当前登录用户信息
-2. 更新个人资料
-
-### 1. 获取当前登录用户信息
-- 接口地址：`GET /api/users/me`
-- 请求头：`Authorization: Bearer <JWT_TOKEN>`
-- 返回示例：
-```json
-{
-  "code":0,
-  "message":"success",
-  "data":{
-    "id":1,
-    "nickname":"Alice",
-    "avatar":"http://localhost:8080/data/avatar/xxx.jpg",
-    "studentNo":"20230101",
-    "major":"计算机科学",
-    "college":"上海大学",
-    "phone":"13800000001"
-  }
-}
-```
-
-### 2. 获取指定用户信息
-- 接口地址：`GET /api/users/me`
-- 请求头：`Authorization: Bearer <JWT_TOKEN>`
-- - 请求参数（multipart/form-data）：
-
-| 参数名    | 必填 | 说明       |
-|--------|------|----------|
-| openId | 否 | 指定用户微信Id |
-
-- 返回示例：
-```json
-{
-  "code":0,
-  "message":"success",
-  "data":{
-    "id":1,
-    "nickname":"Alice",
-    "avatar":"http://localhost:8080/data/avatar/xxx.jpg",
-    "studentNo":"20230101",
-    "major":"计算机科学",
-    "college":"上海大学",
-    "phone":"13800000001"
-  }
-}
-```
-
-### 3. 更新个人资料
-- 接口地址：`PUT /api/users/profile`
-- 请求头：`Authorization: Bearer <JWT_TOKEN>`
-- 请求参数（multipart/form-data）：
-
-| 参数名 | 必填 | 说明         |
-|--------|------|------------|
-| nickname | 否 | 昵称         |
-| avatarFile | 否 | 上传头像文件     |
-| avatarUrl | 否 | 使用已有头像 URL |
-| userIdentity | 否 | 用户类型  1-学生 2-学校职工 3-校外人员      |
-| studentNo | 否 | 学号         |
-| major | 否 | 专业         |
-| college | 否 | 学院         |
-| phone | 否 | 手机号        |
-
-- 头像处理逻辑：
-  - 上传文件后缩放至 200×200
-  - UUID 命名，存储相对路径 `/data/avatar/`
-  - 外部 URL 可直接使用
-
-- 返回示例：
-```json
-{
-  "code":0,
-  "message":"success",
-  "data":{
-    "id":1,
-    "nickname":"Alice",
-    "avatar":"http://localhost:8080/data/avatar/xxx.jpg",
-    "studentNo":"20230101",
-    "major":"计算机科学",
-    "college":"上海大学",
-    "phone":"13800000001"
+    "userId": 1001,
+    "openid": "openid_001",
+    "nickname": "Alice",
+    "avatar": "http://localhost:8080/data/avatar/xxxx.jpg",
+    "role": "USER",
+    "state": 1
   }
 }
 ```
 
 ---
 
-## 3. AdminUserController 接口说明（管理员封禁 / 解封）
+### 2. 用户信息相关接口
 
-### 基础信息
-- Controller 包路径：`org.example.campus_performance_ticketing.api`
-- 请求前缀：`/api/admin/users`
-- 权限要求：管理员（Admin）
-- 认证方式：JWT Token
-- 返回格式：统一使用 `ApiResponse<T>`
+#### 获取当前登录用户
 
-### 封禁 / 解封用户接口
-- 接口地址：`PUT /api/admin/users/ban`
-- 请求头：`Authorization: Bearer <ADMIN_TOKEN>`
-- 请求参数（Query）：
+- **路径**: `GET /api/users/me`
+- **用途**: 获取登录后个人全部信息
 
-| 参数名    | 类型      | 必填 | 说明 |
-|--------|---------|------|------|
-| openId | String  | 是 | 目标用户 ID |
-| ban    | boolean | 是 | true=封禁, false=解封 |
+#### 获取指定用户信息
 
-- 示例请求：
-  PUT /api/admin/users/ban?userId=5&ban=true
+- **路径**: `GET /api/users/member?openId=openid_001`
+- **说明**: 返回内容依据访问者角色不同。
+    - 管理员账户返回全部字段
+    - 普通用户仅获得公开字段（nickname、avatar、college、major）
 
-### 业务逻辑说明
-1. Controller 从 Authorization 头解析 JWT Token
-2. 自动去除 Bearer 前缀
-3. 调用 UserService.banOrUnbanUser(adminToken, userId, ban)
-4. 业务层校验：是否为管理员、用户是否存在、当前状态是否允许变更
-
-### 返回示例
-- 封禁成功：
+**公开信息示例**
 ```json
-{"code":0,"message":"success","data":{"id":5,"nickname":"Alice","status":0}}
+{
+  "success": true,
+  "data": {
+    "nickname": "Alice",
+    "avatar": "...",
+    "college": "信息学院",
+    "major": "软件工程"
+  }
+}
 ```
-- 解封成功：
+**完整信息示例**（管理员账号）
 ```json
-{"code":0,"message":"success","data":{"id":5,"nickname":"Alice","status":1}}
+{
+  "success": true,
+  "data": {
+    "userId": 1001,
+    "openid": "openid_001",
+    "nickname": "Alice",
+    "avatar": "...",
+    "college": "信息学院",
+    "major": "软件工程",
+    "studentNo": "20190001",
+    "phone": "139xxxx0001",
+    "userIdentity": 1,
+    "role": "USER",
+    "status": 1,
+    "createTime": "...",
+    "updateTime": "...",
+    "lastLoginTime": "..."
+  }
+}
 ```
-> status 说明：1=正常, 0=已封禁
 
-### 异常说明
-- 非管理员操作：返回无权限错误
-- 用户不存在：返回业务失败信息
-- Token 无效或过期：认证失败
+---
 
-### 设计说明
-- 管理员接口统一放在 /api/admin/** 下
-- 封禁逻辑集中在 UserService，Controller 简洁
-- 使用 PUT 表示修改用户状态
+### 3. 用户资料更新
 
-### 适用场景
-- 后台管理系统
-- 校园活动 / 售票系统用户风控
-- 管理员用户状态管理
+#### 个人资料修改
 
-### 生产环境建议
-- 配合 Spring Security / 拦截器校验管理员角色
-- 对封禁操作进行操作日志记录
+- **路径**: `PUT /api/users/profile`
+- **参数**: 支持多字段修改（nickname、avatarFile、avatarUrl、userIdentity、studentNo、major、college、phone 等）
+    - 支持头像网络URL或本地文件上传，自动保存并统一格式化
 
+**上传图片请求示例（multipart/form-data）**
+```http
+PUT /api/users/profile
+Content-Type: multipart/form-data
+
+nickname: Bob
+avatarFile: (图片二进制)
+major: 软件工程
+...
+```
+
+**通过链接更新头像示例**（form-urlencoded）
+```http
+PUT /api/users/profile
+Content-Type: application/x-www-form-urlencoded
+
+avatarUrl=https://example.com/pic.jpg
+```
+
+---
+
+### 4. 管理员相关接口
+
+#### 用户封禁 / 解封
+
+- **路径**: `PUT /api/admin/users/ban?openId=openid_001&ban=true`
+- **权限**: 仅管理员可用
+
+#### 查询用户列表
+
+- **路径**: `GET /api/admin/users/list`
+- **权限**: 仅管理员可用
+- **返回**: 所有用户详细数据
+
+#### 更改用户角色
+
+- **路径**: `PUT /api/admin/users/role?openId=openid_002&newRole=ADMIN`
+- **权限**: 仅SUPER_ADMIN可用
+- **角色限定**: `USER`、`VENUE_ADMIN`、`ADMIN`、`SUPER_ADMIN`（必须严格大小写一致），系统自动校验
+
+---
+
+## 三、头像处理机制
+
+- 如果请求为网络图片，系统会下载下来并缩放后保存为本地文件，保证资源可用与统一管理
+- 数据返回时，头像字段自动拼接为完整可访问URL，前端无需单独处理
+
+---
+
+## 四、接口错误响应格式
+
+所有接口失败返回：
+```json
+{
+  "success": false,
+  "message": "错误描述"
+}
+```
+便于前端统一处理与故障追踪。
+
+---
+
+## 五、设计要点补充
+
+- 业务逻辑全部在 Service 层实现，保证 Controller 仅做简单参数收发与鉴权
+- 按角色将返回数据分级（公开/全部信息分离），提升数据安全
+- 参数和权限校验均采用后端统一控制
+- 支持灵活头像处理、角色管理、封禁功能，便于后续系统扩展
+
+---
+
+本接口文档结合了接口规范与实现细节，以便开发、测试、后续说明或技术/系统分析时查阅。如有需要更多字段或业务逻辑说明，请查阅源码或负责人注释。

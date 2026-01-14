@@ -5,18 +5,19 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 
 /**
- * 演出组织 / 活动主办方
+ * 组织信息实体
  */
 @Getter
 @Setter
 @NoArgsConstructor
 @Entity
-@Table(name = "organization")
-public class Organization {
+@Table(name = "organization_info")
+public class OrganizationInfo {
 
     /** 组织主键ID */
     @Id
@@ -31,22 +32,28 @@ public class Organization {
     @Column(length = 255)
     private String description;
 
-    /** 组织照片 URL */
-    @Column(length = 255)
-    private String avatar;
-
-    /** 负责人用户ID */
-    @Column(name = "leader_user_id", nullable = false)
-    private Long leaderUserId;
+    /**
+     * 组织首领用户
+     * 外键关联 user_info.id
+     */
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "leader_id", referencedColumnName = "id", nullable = false)
+    private UserInfo leader;
 
     /**
      * 组织状态
-     * 0-待审核 1-正常 2-停用
+     * 1-正常 2-待审批 3-已解散
      */
+    @Column(nullable = false)
     private Integer status;
 
     /** 创建时间 */
     @CreationTimestamp
     @Column(name = "create_time", updatable = false)
     private LocalDateTime createTime;
+
+    /** 更新时间 */
+    @UpdateTimestamp
+    @Column(name = "update_time")
+    private LocalDateTime updateTime;
 }

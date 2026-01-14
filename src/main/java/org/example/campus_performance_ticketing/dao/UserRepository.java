@@ -28,10 +28,5 @@ public interface UserRepository
     @Query("SELECT new org.example.campus_performance_ticketing.logic.dto.PublicUserInfo(u.nickname, u.avatar, u.major, u.college, u.status) " +
             "FROM UserInfo u WHERE u.openid = :openid")
     Optional<PublicUserInfo> findPublicUserInfoByOpenid(@Param("openid") String openid);
-
-    // 根据组织ID获取该组织所有成员的详细信息
-    @Query("SELECT u FROM UserInfo u WHERE u.id IN " +
-            "(SELECT uo.userId FROM UserOrganization uo WHERE uo.organizationId = :orgId)")
-    List<UserInfo> findAllUsersByOrganizationId(@Param("orgId") Long organizationId);
 }
 

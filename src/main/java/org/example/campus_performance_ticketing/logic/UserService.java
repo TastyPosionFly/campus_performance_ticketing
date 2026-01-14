@@ -3,6 +3,7 @@ package org.example.campus_performance_ticketing.logic;
 import org.example.campus_performance_ticketing.dao.UserRepository;
 import org.example.campus_performance_ticketing.logic.dto.ApiResponse;
 import org.example.campus_performance_ticketing.logic.dto.LoginResult;
+import org.example.campus_performance_ticketing.logic.dto.PublicUserInfo;
 import org.example.campus_performance_ticketing.model.UserInfo;
 import org.example.campus_performance_ticketing.util.JwtTokenUtil;
 import org.springframework.beans.factory.annotation.Value;
@@ -103,32 +104,32 @@ public class UserService {
         }
     }
 
-        /**
-         * 根据 openid 获取头像路径
-         */
-        public String getAvatarPathByOpenid(String openid) {
-            if (!StringUtils.hasText(openid)) {
-                return null;
-            }
-            try {
-                String avatar_path = userRepository.findByOpenid(openid)
-                        .map(UserInfo::getAvatar)
-                        .orElse(null);
-
-                // 检查该路径是否存在
-                if (avatar_path != null) {
-                    java.nio.file.Path path = java.nio.file.Paths.get("./" + avatar_path);
-                    if (!java.nio.file.Files.exists(path)) {
-                        return null;
-                    }
-                }
-
-                return avatar_path;
-            } catch (Exception e) {
-                logger.warn("getAvatarPathByOpenid failed for openid={}", openid, e);
-                return null;
-            }
+    /**
+     * 根据 openid 获取头像路径
+     */
+    public String getAvatarPathByOpenid(String openid) {
+        if (!StringUtils.hasText(openid)) {
+            return null;
         }
+        try {
+            String avatar_path = userRepository.findByOpenid(openid)
+                    .map(UserInfo::getAvatar)
+                    .orElse(null);
+
+            // 检查该路径是否存在
+            if (avatar_path != null) {
+                java.nio.file.Path path = java.nio.file.Paths.get("./" + avatar_path);
+                if (!java.nio.file.Files.exists(path)) {
+                    return null;
+                }
+            }
+
+            return avatar_path;
+        } catch (Exception e) {
+            logger.warn("getAvatarPathByOpenid failed for openid={}", openid, e);
+            return null;
+        }
+    }
 
     /**
      * 获取当前登录用户信息
@@ -166,7 +167,19 @@ public class UserService {
                     .orElseThrow(() -> new RuntimeException("用户不存在"));
 
             if (nickname != null) user.setNickname(nickname);
-            if (avatar != null) user.setAvatar(avatar);
+            // 如果上传了最新的图片，则将老图片在服务器中删除
+            if (avatar != null) {
+                String oldAvatar = user.getAvatar();
+                if (oldAvatar != null) {
+                    java.nio.file.Path oldPath = java.nio.file.Paths.get("./" + oldAvatar);
+                    try {
+                        java.nio.file.Files.deleteIfExists(oldPath);
+                    } catch (Exception e) {
+                        logger.warn("删除旧头像失败，路径={}", oldPath, e);
+                    }
+                }
+                user.setAvatar(avatar);
+            }
             if (userIdentity != null) user.setUserIdentity(userIdentity);
             if (studentNo != null) user.setStudentNo(studentNo);
             if (major != null) user.setMajor(major);
@@ -214,6 +227,20 @@ public class UserService {
 
 
     /**
+     * 获取数据库中所有用户列表
+     */
+    public ApiResponse<Iterable<UserInfo>> getAllUsers() {
+        try {
+            Iterable<UserInfo> users = userRepository.findAll();
+            return ApiResponse.success(users);
+        } catch (Exception e) {
+            logger.error("getAllUsers failed", e);
+            return ApiResponse.fail("查询用户列表失败");
+        }
+    }
+
+
+    /**
      * 根据ID查询用户信息
      */
     public ApiResponse<UserInfo> getUserByOpenId(String openId) {
@@ -231,6 +258,68 @@ public class UserService {
         } catch (Exception e) {
             logger.error("getUserByOpenId failed for openId={}", openId, e);
             return ApiResponse.fail("查询用户失败");
+        }
+    }
+
+    /**
+     * 根据角色返回不同层级的用户信息
+     */
+    public ApiResponse<?> getMemberUserInfo(String openId, String role) {
+        if ("ADMIN".equalsIgnoreCase(role) || "SUPER_ADMIN".equalsIgnoreCase(role)) {
+            // 管理员返回全部信息
+            ApiResponse<UserInfo> response = getUserByOpenId(openId);
+            return response;
+        } else {
+            // 普通用户返回公开信息
+            Optional<PublicUserInfo> publicInfoOpt = userRepository.findPublicUserInfoByOpenid(openId);
+            if (publicInfoOpt.isPresent()) {
+                PublicUserInfo info = publicInfoOpt.get();
+                return ApiResponse.success(info);
+            } else {
+                return ApiResponse.fail("用户不存在");
+            }
+        }
+    }
+
+    /**
+     * SUPER_ADMIN 修改用户角色
+     */
+    public ApiResponse<UserInfo> updateUserRole(String openId, String newRole, String operatorRole) {
+        if (!"SUPER_ADMIN".equalsIgnoreCase(operatorRole)) {
+            return ApiResponse.fail("没有权限修改用户角色");
+        }
+
+        // 角色白名单校验
+        if (!isValidRole(newRole)) {
+            return ApiResponse.fail("角色参数不合法，只能为 USER、VENUE_ADMIN、ADMIN、SUPER_ADMIN");
+        }
+
+        try {
+            UserInfo user = userRepository.findByOpenid(openId)
+                    .orElseThrow(() -> new RuntimeException("用户不存在"));
+
+            user.setRole(newRole);
+            UserInfo updated = userRepository.save(user);
+            return ApiResponse.success(updated);
+        } catch (Exception e) {
+            logger.error("updateUserRole failed for openId={}, newRole={}", openId, newRole, e);
+            return ApiResponse.fail("修改用户角色失败");
+        }
+    }
+
+    /**
+     * 用户角色枚举
+     */
+    public enum UserRoleEnum {
+        USER, VENUE_ADMIN, ADMIN, SUPER_ADMIN
+    }
+
+    private static boolean isValidRole(String role) {
+        try {
+            UserRoleEnum.valueOf(role); // 若role不完全一致会抛异常
+            return true;
+        } catch (IllegalArgumentException e) {
+            return false;
         }
     }
 }

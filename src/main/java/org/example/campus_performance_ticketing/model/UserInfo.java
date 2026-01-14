@@ -68,7 +68,7 @@ public class UserInfo {
 
     /**
      * 账号状态
-     * 1-正常 0-封禁
+     * 0-封禁 1-正常
      */
     private Integer status;
 

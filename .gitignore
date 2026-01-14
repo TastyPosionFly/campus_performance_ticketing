@@ -60,3 +60,6 @@ application*-prod.properties
 
 ## document ##
 /document/UML/
+
+## Server Testing files ##
+/API Test/Server Test/*

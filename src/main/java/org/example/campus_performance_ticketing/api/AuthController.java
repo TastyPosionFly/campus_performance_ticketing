@@ -5,6 +5,7 @@ import org.example.campus_performance_ticketing.logic.UserService;
 import org.example.campus_performance_ticketing.logic.dto.ApiResponse;
 import org.example.campus_performance_ticketing.logic.dto.LoginRequest;
 import org.example.campus_performance_ticketing.logic.dto.LoginResult;
+import org.example.campus_performance_ticketing.util.AvatarUrlUtil;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 import org.slf4j.Logger;
@@ -82,8 +83,9 @@ public class AuthController {
                 avatarPath
         );
 
-        if (response.getData() != null && response.getData().getAvatar() != null) {
-            response.getData().setAvatar(avatarBaseUrl + response.getData().getAvatar());
+        if (response.getData() != null) {
+            String avatar = response.getData().getAvatar();
+            response.getData().setAvatar(AvatarUrlUtil.buildAvatarUrl(avatar, avatarBaseUrl));
         }
 
         return response;

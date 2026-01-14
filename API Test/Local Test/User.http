@@ -1,0 +1,126 @@
+### @env local
+
+### 超级管理员用户登入
+POST {{baseURL}}/auth/login
+Content-Type: application/json
+
+{
+  "openid": "openid_001"
+}
+
+> {% client.global.set("token", response.body.token); %}
+
+
+### 普通用户登入
+POST {{baseURL}}/auth/login
+Content-Type: application/json
+
+{
+  "openid": "openid_002"
+}
+
+> {% client.global.set("token", response.body.token); %}
+
+### 用户注册
+POST {{baseURL}}/auth/login
+Content-Type: application/json
+
+{
+    "openid": "openid_005",
+    "nickname": "newuser",
+    "avatar": "https://avatars.githubusercontent.com/u/1?v=4"
+}
+
+> {% client.global.set("token", response.body.token); %}
+
+
+### 获取用户头像
+GET http://localhost:8080/data/avatar/monalisa-200x200.jpg
+Accept: application/json
+Authorization: Bearer {{token}}
+
+
+### 获取当前用户信息
+GET {{baseURL}}/users/me
+Accept: application/json
+Authorization: Bearer {{token}}
+
+
+### 更新用户信息（包含所有参数及文件上传）
+PUT {{baseURL}}/users/profile
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+Authorization: Bearer {{token}}
+
+--WebAppBoundary
+Content-Disposition: form-data; name="nickname"
+
+测试昵称
+--WebAppBoundary
+Content-Disposition: form-data; name="avatarUrl"
+
+https://via.placeholder.com/100.png
+--WebAppBoundary
+Content-Disposition: form-data; name="avatarFile"; filename="./avatar.jpg"
+Content-Type: image/png
+
+< ./avatar.jpg
+--WebAppBoundary
+Content-Disposition: form-data; name="userIdentity"
+
+2
+--WebAppBoundary
+Content-Disposition: form-data; name="studentNo"
+
+20230010001
+--WebAppBoundary
+Content-Disposition: form-data; name="major"
+
+计算机科学与技术
+--WebAppBoundary
+Content-Disposition: form-data; name="college"
+
+信息科学与工程学院
+--WebAppBoundary
+Content-Disposition: form-data; name="phone"
+
+13512345678
+--WebAppBoundary--
+
+
+### 只用可下载图片url更新头像
+PUT {{baseURL}}/users/profile
+Content-Type: application/x-www-form-urlencoded
+Authorization: Bearer {{token}}
+
+avatarUrl=https://avatars.githubusercontent.com/u/1?v=4
+
+
+### 查询指定用户信息（带Token）
+GET http://localhost:8080/api/users/member?openId=openid_002
+Accept: application/json
+Authorization: Bearer {{token}}
+
+
+### 封禁用户 （管理员,超级管理员权限）
+PUT {{baseURL}}/admin/users/ban?openId=openid_002&ban=true
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+### 解封用户 （管理员,超级管理员权限）
+PUT {{baseURL}}/admin/users/ban?openId=openid_002&ban=false
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+### 获取用户列表 （管理员,超级管理员权限）
+GET {{baseURL}}/admin/users/list
+Accept: application/json
+Authorization: Bearer {{token}}
+
+### 更改用户身份 （超级管理员权限）
+PUT {{baseURL}}/admin/users/role?openId=openid_002&newRole=ADMIN
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+
+
+

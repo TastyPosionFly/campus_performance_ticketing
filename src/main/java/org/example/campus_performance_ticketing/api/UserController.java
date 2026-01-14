@@ -4,6 +4,7 @@ import net.coobird.thumbnailator.Thumbnails;
 import org.example.campus_performance_ticketing.logic.UserService;
 import org.example.campus_performance_ticketing.logic.dto.ApiResponse;
 import org.example.campus_performance_ticketing.model.UserInfo;
+import org.example.campus_performance_ticketing.util.AvatarUrlUtil;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -46,12 +47,13 @@ public class UserController {
      * 获取指定用户信息
      */
     @GetMapping("/member")
-    public ApiResponse<UserInfo> getUserInfo(
+    public ApiResponse<?> getUserInfo(
+            HttpServletRequest request,
             @RequestParam(required = false) String openId
     ) {
-        ApiResponse<UserInfo> response = userService.getUserByOpenId(openId);
-        fillAvatarUrl(response);
-        return response;
+        String role = (String) request.getAttribute("role");
+        // 管理员和普通用户获取到的用户信息不同
+        return userService.getMemberUserInfo(openId, role);
     }
 
     /**
@@ -93,8 +95,26 @@ public class UserController {
             } catch (IOException e) {
                 return ApiResponse.fail("头像上传失败：" + e.getMessage());
             }
-        } else if (avatarUrl != null) {
-            avatarPath = avatarUrl;
+        } else if (avatarUrl != null && avatarUrl.startsWith("http")) {
+            // 如果提供了头像 URL，则下载并保存
+            try {
+                Files.createDirectories(Paths.get(avatarUploadDir));
+
+                String ext = getUrlFileExtension(avatarUrl);
+                if (ext.isEmpty()) ext = ".jpg";
+                String fileName = UUID.randomUUID() + ext;
+                File dest = new File(avatarUploadDir, fileName);
+
+                Thumbnails.of(new java.net.URL(avatarUrl))
+                        .size(200, 200)
+                        .keepAspectRatio(true)
+                        .toFile(dest);
+
+                avatarPath = "/data/avatar/" + fileName;
+
+            } catch (IOException e) {
+                return ApiResponse.fail("头像处理失败：" + e.getMessage());
+            }
         }
 
         // 调用 Service 层用 openId 更新
@@ -110,8 +130,9 @@ public class UserController {
     /* ================= 私有工具方法 ================= */
 
     private void fillAvatarUrl(ApiResponse<UserInfo> response) {
-        if (response.getData() != null && response.getData().getAvatar() != null) {
-            response.getData().setAvatar(avatarBaseUrl + response.getData().getAvatar());
+        if (response.getData() != null) {
+            String avatar = response.getData().getAvatar();
+            response.getData().setAvatar(AvatarUrlUtil.buildAvatarUrl(avatar, avatarBaseUrl));
         }
     }
 
@@ -120,4 +141,23 @@ public class UserController {
         int index = filename.lastIndexOf('.');
         return index > 0 ? filename.substring(index) : "";
     }
+
+    /**
+     * 获取 URL 中的文件扩展名
+     */
+    private String getUrlFileExtension(String url) {
+        if (url == null) return "";
+        // 去掉参数和片段
+        String path = url.split("\\?")[0].split("#")[0];
+        int idx = path.lastIndexOf('.');
+        if (idx > 0 && idx > path.lastIndexOf('/')) {
+            String ext = path.substring(idx);
+            // 只保留常见的图片扩展名
+            if (ext.matches("\\.(jpg|jpeg|png|gif|bmp|webp)")) {
+                return ext;
+            }
+        }
+        return "";
+    }
+
 }

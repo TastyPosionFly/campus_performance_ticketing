@@ -1,0 +1,70 @@
+### ========== 超级管理用户登录，获取token ==========
+POST {{baseURL}}/auth/login
+Content-Type: application/json
+
+{
+  "openid": "openid_001"
+}
+
+> {% client.global.set("token", response.body.token); %}
+
+
+### ========== 管理员登录，获取token ==========
+### 普通用户登入
+POST {{baseURL}}/auth/login
+Content-Type: application/json
+
+{
+  "openid": "openid_002"
+}
+
+> {% client.global.set("token", response.body.token); %}
+
+
+################################################
+### ---------- 普通用户 APIs 测试 ---------- ###
+################################################
+
+### 用户: 申请创建组织
+POST {{baseURL}}/organization/apply
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "orgName": "普通用户测试组织22",
+  "orgDescription": "普通用户提交的组织描述22"
+}
+
+### 用户: 查询自己申请记录
+GET {{baseURL}}/application/my-applications
+Authorization: Bearer {{token}}
+
+### 用户: 撤销组织创建申请
+POST {{baseURL}}/organization/revoke?applicationId=5
+Authorization: Bearer {{token}}
+
+
+################################################
+### --------- 管理员 APIs 测试 -------------- ###
+################################################
+
+### 管理员: 查询所有待审核的创建组织申请
+GET {{baseURL}}/application/list?applicationType=CREATE_ORG&status=1
+Authorization: Bearer {{token}}
+
+### 管理员: 批量审核申请 通过/拒绝
+POST {{baseURL}}/application/batch-review
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+[
+  {
+    "applicationId": 4,
+    "newStatus": 2,
+    "reason": "审核通过-资料齐全"
+  }
+]
+
+### 管理员: 查询所有申请（不筛选）
+GET http://localhost:8080/api/application/list
+Authorization: Bearer {{token}}

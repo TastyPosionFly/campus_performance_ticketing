@@ -194,6 +194,19 @@ public class UserService {
         }
     }
 
+    /**
+     * 查询用户是否存在
+     */
+    @Transactional(readOnly = true)
+    public UserInfo findUserByOpenId(String openId) {
+        try {
+            return userRepository.findByOpenid(openId)
+                    .orElseThrow(() -> new IllegalArgumentException("用户不存在"));
+        } catch (Exception e) {
+            logger.error("用户不存在{}", openId, e);
+            throw e;
+        }
+    }
 
     /**
      * 封禁 / 解封用户

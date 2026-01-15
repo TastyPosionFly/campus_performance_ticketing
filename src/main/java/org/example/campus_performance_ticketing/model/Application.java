@@ -60,7 +60,6 @@ public class Application {
     private LocalDateTime applyTime;
 
     /** 审批时间 */
-    @UpdateTimestamp
     @Column(name = "approve_time")
     private LocalDateTime approveTime;
 

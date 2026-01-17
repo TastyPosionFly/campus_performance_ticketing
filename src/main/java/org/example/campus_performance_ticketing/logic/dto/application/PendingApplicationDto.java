@@ -1,4 +1,4 @@
-package org.example.campus_performance_ticketing.logic.dto;
+package org.example.campus_performance_ticketing.logic.dto.application;
 
 import lombok.Data;
 

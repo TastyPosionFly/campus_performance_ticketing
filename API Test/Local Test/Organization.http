@@ -10,61 +10,155 @@ Content-Type: application/json
 
 
 ### ========== 管理员登录，获取token ==========
-### 普通用户登入
 POST {{baseURL}}/auth/login
 Content-Type: application/json
 
 {
-  "openid": "openid_002"
+  "openid": "openid_004"
 }
 
 > {% client.global.set("token", response.body.token); %}
 
 
-################################################
-### ---------- 普通用户 APIs 测试 ---------- ###
-################################################
+### ========== ApplicationController 接口调试 ==========
 
-### 用户: 申请创建组织
-POST {{baseURL}}/organization/apply
-Authorization: Bearer {{token}}
-Content-Type: application/json
-
-{
-  "orgName": "普通用户测试组织22",
-  "orgDescription": "普通用户提交的组织描述22"
-}
-
-### 用户: 查询自己申请记录
+### 查询本人提交的申请记录 (Pass)
 GET {{baseURL}}/application/my-applications
 Authorization: Bearer {{token}}
 
-### 用户: 撤销组织创建申请
-POST {{baseURL}}/organization/revoke?applicationId=5
+### 查询本人提交的申请记录（指定类型） (Pass)
+GET {{baseURL}}/application/my-applications?applicationType=CREATE_ORG
 Authorization: Bearer {{token}}
 
-
-################################################
-### --------- 管理员 APIs 测试 -------------- ###
-################################################
-
-### 管理员: 查询所有待审核的创建组织申请
-GET {{baseURL}}/application/list?applicationType=CREATE_ORG&status=1
+### 查询所有申请（管理用） (Pass)
+GET {{baseURL}}/application/list
 Authorization: Bearer {{token}}
 
-### 管理员: 批量审核申请 通过/拒绝
+### 查询所有申请（按类型/状态过滤）(Pass)
+GET {{baseURL}}/application/list?applicationType=JOIN_ORG&status=1
+Authorization: Bearer {{token}}
+
+### 批量审核申请 (Pass)
 POST {{baseURL}}/application/batch-review
-Authorization: Bearer {{token}}
 Content-Type: application/json
+Authorization: Bearer {{token}}
 
 [
   {
-    "applicationId": 4,
+    "applicationId": 11,
     "newStatus": 2,
-    "reason": "审核通过-资料齐全"
+    "reason": "拒绝理由"
   }
 ]
 
-### 管理员: 查询所有申请（不筛选）
-GET http://localhost:8080/api/application/list
+### 撤销个人申请 (Pass)
+POST {{baseURL}}/application/revoke?applicationId=6
+Authorization: Bearer {{token}}
+
+
+### ========== OrganizationController 组织相关接口调试 ==========
+### 提交创建组织申请（form-data: Json+文件二选一） (Pass)
+POST {{baseURL}}/organization/apply
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+Accept: application/json
+
+--WebAppBoundary
+Content-Disposition: form-data; name="body"
+Content-Type: application/json; charset=UTF-8
+
+{"orgName":"极客社222","orgDescription":"技术极客聚集地","avatarUrl":"https://avatars.githubusercontent.com/u/1?v=4"}
+--WebAppBoundary
+Content-Disposition: form-data; name="avatarFile"; filename="avatar.png"
+Content-Type: image/png
+
+--WebAppBoundary--
+
+### 更换组织首领 （Pass）
+POST {{baseURL}}/organization/change-leader?orgId=4&newLeaderId=4
+Authorization: Bearer {{token}}
+
+### 获取所有组织 (Pass)
+GET {{baseURL}}/organization/all
+Authorization: Bearer {{token}}
+
+### 获取指定组织详情 (Pass)
+GET {{baseURL}}/organization/3
+Authorization: Bearer {{token}}
+
+### 提交组织解散申请 （Pass）
+POST {{baseURL}}/organization/disband?orgId=4
+Authorization: Bearer {{token}}
+
+### 获取某个组织成员列表 (Pass)
+GET {{baseURL}}/organization/3/members
+Authorization: Bearer {{token}}
+
+### 获取自己加入的组织列表 (Pass)
+GET {{baseURL}}/organization/my-organizations
+Authorization: Bearer {{token}}
+
+
+### ========== 组织成员相关接口 ==========
+
+### 申请加入组织（JSON DTO）(Pass)
+POST {{baseURL}}/organization/member/apply
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "orgId": 3,
+  "reason": "我热爱组织，想一起成长"
+}
+
+### 更改组织成员身份（JSON DTO）(Pass)
+POST {{baseURL}}/organization/member/change-role
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "orgId": 3,
+  "memberId": 5,
+  "newRole": "MANAGER"
+}
+
+### 退出组织 (Pass)
+POST {{baseURL}}/organization/member/quit?orgId=3
+Authorization: Bearer {{token}}
+
+### 踢出组织成员 (Pass)
+POST {{baseURL}}/organization/member/kick?orgId=3&memberId=5
+Authorization: Bearer {{token}}
+
+
+### ========== 组织相册相关接口 ==========
+
+### 上传组织相册图片（form-data: Json+文件二选一）(Pass)
+POST {{baseURL}}/organization/album/upload
+Authorization: Bearer {{token}}
+Accept: application/json
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="body"
+Content-Type: application/json; charset=UTF-8
+
+{"organizationId":3,"photoUrl":"https://avatars.githubusercontent.com/u/1?v=4"}
+--WebAppBoundary
+Content-Disposition: form-data; name="photoFile"; filename="avatar.jpg"
+Content-Type: image/jpeg
+
+--WebAppBoundary--
+
+### 删除组织相册图片 (Pass)
+POST {{baseURL}}/organization/album/delete?photoId=7
+Authorization: Bearer {{token}}
+
+### 查询组织相册图片列表 (Pass)
+POST {{baseURL}}/organization/album/list?organizationId=3
+Authorization: Bearer {{token}}
+
+### ========== 其他接口调试 ==========
+GET http://localhost:8080/data/org-avatar/monalisa-200x200.jpg
+Accept: application/json
 Authorization: Bearer {{token}}

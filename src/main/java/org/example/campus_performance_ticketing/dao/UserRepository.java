@@ -1,12 +1,11 @@
 package org.example.campus_performance_ticketing.dao;
 
-import org.example.campus_performance_ticketing.logic.dto.PublicUserInfo;
+import org.example.campus_performance_ticketing.logic.dto.user.PublicUserInfo;
 import org.example.campus_performance_ticketing.model.UserInfo;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import java.util.List;
 import java.util.Optional;
 
 public interface UserRepository
@@ -25,7 +24,7 @@ public interface UserRepository
     /**
      * 只返回公开字段DTO
      */
-    @Query("SELECT new org.example.campus_performance_ticketing.logic.dto.PublicUserInfo(u.nickname, u.avatar, u.major, u.college, u.status) " +
+    @Query("SELECT new org.example.campus_performance_ticketing.logic.dto.user.PublicUserInfo(u.nickname, u.avatar, u.major, u.college, u.status) " +
             "FROM UserInfo u WHERE u.openid = :openid")
     Optional<PublicUserInfo> findPublicUserInfoByOpenid(@Param("openid") String openid);
 }

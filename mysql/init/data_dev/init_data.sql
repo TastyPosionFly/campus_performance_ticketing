@@ -14,11 +14,11 @@ VALUES
     ('openid_004', 'David', '/data/avatar/monalisa-200x200.jpg', 3, NULL, NULL, '外校', '13800000004', 'VENUE_ADMIN', 1);
 
 -- 2. 插入组织信息  (leader_id对应user_info的id)
-INSERT INTO organization_info (name, description, leader_id, status, create_time, update_time) 
+INSERT INTO organization_info (name, description, avatar_url, leader_id, status, create_time, update_time)
 VALUES
-   ('计算机协会', '热爱编程和算法的社团组织', 1, 1, NOW(), NOW()),
-   ('乐队之家', '面向全校音乐爱好者的乐团', 2, 1, NOW(), NOW()),
-   ('读书沙龙', '定期举行主题读书会的文学社团', 3, 1, NOW(), NOW());
+   ('计算机协会', '热爱编程和算法的社团组织', '/data/org-avatar/monalisa-200x200.jpg', 1, 1, NOW(), NOW()),
+   ('乐队之家', '面向全校音乐爱好者的乐团', '/data/org-avatar/monalisa-200x200.jpg',2, 1, NOW(), NOW()),
+   ('读书沙龙', '定期举行主题读书会的文学社团', '/data/org-avatar/monalisa-200x200.jpg',3, 1, NOW(), NOW());
 
 -- 3. 插入组织成员（MEMBER/LEADER/MANAGER）
 -- 三个组织，每个有两名成员，分别承担不同角色
@@ -41,9 +41,9 @@ VALUES
 -- 5. 插入组织相册数据（给每个组织加入1张照片）
 INSERT INTO organization_album (organization_id, photo_url, uploader_id, upload_time, description) 
 VALUES
-    (1, '/data/organization_photos/monalisa-500x500.jpg', 1, NOW(), '2026春季编程比赛合影'),
-    (2, '/data/organization_photos/monalisa-500x500.jpg', 2, NOW(), '2026乐队排练现场'),
-    (3, '/data/organization_photos/monalisa-500x500.jpg', 3, NOW(), '读书沙龙活动留影');
+    (1, '/data/org_album/monalisa-500x500.jpg', 1, NOW(), '2026春季编程比赛合影'),
+    (2, '/data/org_album/monalisa-500x500.jpg', 2, NOW(), '2026乐队排练现场'),
+    (3, '/data/org_album/monalisa-500x500.jpg', 3, NOW(), '读书沙龙活动留影');
 
 
 

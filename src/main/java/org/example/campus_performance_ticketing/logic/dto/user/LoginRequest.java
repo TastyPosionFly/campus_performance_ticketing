@@ -1,6 +1,10 @@
-package org.example.campus_performance_ticketing.logic.dto;
+package org.example.campus_performance_ticketing.logic.dto.user;
 
 import lombok.Data;
+
+/**
+ * 登录请求 DTO
+ */
 
 @Data
 public class LoginRequest {

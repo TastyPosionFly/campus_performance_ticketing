@@ -2,6 +2,7 @@ CREATE TABLE organization_info (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '组织主键ID',
     name VARCHAR(100) NOT NULL COMMENT '组织名称',
     description VARCHAR(255) COMMENT '组织简介',
+    avatar_url VARCHAR(255) COMMENT '组织头像URL',
     leader_id BIGINT NOT NULL COMMENT '组织首领用户ID',
     status TINYINT DEFAULT 1 COMMENT '组织状态：1-正常 2-待审批 3-已解散',
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',

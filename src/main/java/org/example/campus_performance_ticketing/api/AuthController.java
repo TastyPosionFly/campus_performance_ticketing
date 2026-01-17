@@ -1,22 +1,15 @@
 package org.example.campus_performance_ticketing.api;
 
-import net.coobird.thumbnailator.Thumbnails;
 import org.example.campus_performance_ticketing.logic.UserService;
 import org.example.campus_performance_ticketing.logic.dto.ApiResponse;
-import org.example.campus_performance_ticketing.logic.dto.LoginRequest;
-import org.example.campus_performance_ticketing.logic.dto.LoginResult;
+import org.example.campus_performance_ticketing.logic.dto.user.LoginRequest;
+import org.example.campus_performance_ticketing.logic.dto.user.LoginResult;
 import org.example.campus_performance_ticketing.util.AvatarUrlUtil;
+import org.example.campus_performance_ticketing.util.FileUtil;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.File;
-import java.io.InputStream;
-import java.net.URL;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -27,7 +20,7 @@ public class AuthController {
     @Value("${user.avatar.upload-dir}")
     private String avatarUploadDir;
 
-    @Value("${user.avatar.base-url}")
+    @Value("${file.base.url}")
     private String avatarBaseUrl;
 
     private static final Logger logger = LoggerFactory.getLogger(AuthController.class);
@@ -46,7 +39,7 @@ public class AuthController {
 
         String avatarPath = null;
 
-        // 先从数据库检查是否已有头像路径（需在 UserService 中实现：String getAvatarPathByOpenid(String openid)）
+        // 先从数据库检查是否已有头像路径
         if (request.getOpenid() != null) {
             try {
                 avatarPath = userService.getAvatarPathByOpenid(request.getOpenid());
@@ -58,20 +51,10 @@ public class AuthController {
 
         if (request.getAvatar() != null && request.getAvatar().startsWith("http") && (avatarPath == null || avatarPath.isBlank())) {
             try {
-                Files.createDirectories(Paths.get(avatarUploadDir));
+                String safeDir = FileUtil.normalizeUploadDir(avatarUploadDir);
 
-                String fileName = UUID.randomUUID() + ".jpg";
-                File dest = new File(avatarUploadDir + File.separator + fileName);
-
-                try (InputStream in = new URL(request.getAvatar()).openStream()) {
-                    Thumbnails.of(in)
-                            .size(200, 200)
-                            .keepAspectRatio(true)
-                            .toFile(dest);
-                }
-
-                avatarPath = "/data/avatar/" + fileName;
-
+                // 使用 FileUtil 保存头像文件，返回文件保存路径
+                avatarPath = FileUtil.saveAvatarFromUrl(request.getAvatar(), safeDir, ".jpg");
             } catch (Exception e) {
                 return ApiResponse.fail("头像处理失败：" + e.getMessage());
             }

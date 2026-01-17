@@ -26,7 +26,7 @@ POST {{baseURL}}/auth/login
 Content-Type: application/json
 
 {
-    "openid": "openid_005",
+    "openid": "openid_007",
     "nickname": "newuser",
     "avatar": "https://avatars.githubusercontent.com/u/1?v=4"
 }
@@ -35,7 +35,7 @@ Content-Type: application/json
 
 
 ### 获取用户头像
-GET http://localhost:8080/data/avatar/monalisa-200x200.jpg
+GET http://localhost:8080/data/avatar/06332aaa-a5bb-46e9-b1a5-37a3e8ee9b5d.jpg
 Accept: application/json
 Authorization: Bearer {{token}}
 

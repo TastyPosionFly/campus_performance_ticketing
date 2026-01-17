@@ -1,7 +1,11 @@
-package org.example.campus_performance_ticketing.logic.dto;
+package org.example.campus_performance_ticketing.logic.dto.user;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
+
+/**
+ * 登录结果 DTO
+ */
 
 @Data
 @AllArgsConstructor

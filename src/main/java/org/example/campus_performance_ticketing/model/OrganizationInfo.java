@@ -32,6 +32,10 @@ public class OrganizationInfo {
     @Column(length = 255)
     private String description;
 
+    /** 组织头像 URL */
+    @Column(name = "avatar_url", length = 255)
+    private String avatarUrl;
+
     /**
      * 组织首领用户
      * 外键关联 user_info.id

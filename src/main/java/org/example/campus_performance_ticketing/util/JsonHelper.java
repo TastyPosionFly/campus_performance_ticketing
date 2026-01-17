@@ -1,7 +1,6 @@
 package org.example.campus_performance_ticketing.util;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import org.example.campus_performance_ticketing.logic.dto.PendingApplicationDto;
+import org.example.campus_performance_ticketing.logic.dto.application.PendingApplicationDto;
 import org.example.campus_performance_ticketing.model.Application;
 import org.springframework.stereotype.Component;
 import com.fasterxml.jackson.databind.ObjectMapper;

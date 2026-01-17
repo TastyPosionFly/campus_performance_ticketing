@@ -103,6 +103,13 @@
             <version>2.15.2</version>
         </dependency>
 
+        <!-- 参数错误管理依赖 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+
+
     </dependencies>
 
     <build>

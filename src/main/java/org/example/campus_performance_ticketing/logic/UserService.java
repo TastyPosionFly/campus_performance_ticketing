@@ -1,18 +1,22 @@
 package org.example.campus_performance_ticketing.logic;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import org.example.campus_performance_ticketing.dao.UserRepository;
 import org.example.campus_performance_ticketing.logic.dto.ApiResponse;
-import org.example.campus_performance_ticketing.logic.dto.LoginResult;
-import org.example.campus_performance_ticketing.logic.dto.PublicUserInfo;
+import org.example.campus_performance_ticketing.logic.dto.user.LoginResult;
+import org.example.campus_performance_ticketing.logic.dto.user.PublicUserInfo;
 import org.example.campus_performance_ticketing.model.UserInfo;
+import org.example.campus_performance_ticketing.util.AvatarUrlUtil;
+import org.example.campus_performance_ticketing.util.FileUtil;
 import org.example.campus_performance_ticketing.util.JwtTokenUtil;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.validation.annotation.Validated;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -20,6 +24,7 @@ import java.util.Optional;
 
 
 @Service
+@Validated
 public class UserService {
 
     private final UserRepository userRepository;
@@ -27,8 +32,9 @@ public class UserService {
 
     private static final Logger logger = LoggerFactory.getLogger(UserService.class);
 
-    @Value("${user.avatar.upload-dir}")
-    private String avatarUploadDir;
+    @Value("${file.base.url}")
+    private String baseUrl;
+
 
     public UserService(UserRepository userRepository, JwtTokenUtil jwtTokenUtil) {
         this.userRepository = userRepository;
@@ -39,13 +45,9 @@ public class UserService {
      * 微信登录 / 自动注册
      */
     @Transactional
-    public ApiResponse<LoginResult> loginOrRegister(String openid,
+    public ApiResponse<LoginResult> loginOrRegister(@NotBlank String openid,
                                                     String nickname,
                                                     String avatar) {
-        if (!StringUtils.hasText(openid)) {
-            return ApiResponse.fail("openid 不能为空");
-        }
-
         try {
             UserInfo user = userRepository.findByOpenid(openid)
                     .orElseGet(() -> {
@@ -107,10 +109,7 @@ public class UserService {
     /**
      * 根据 openid 获取头像路径
      */
-    public String getAvatarPathByOpenid(String openid) {
-        if (!StringUtils.hasText(openid)) {
-            return null;
-        }
+    public String getAvatarPathByOpenid(@NotBlank String openid) {
         try {
             String avatar_path = userRepository.findByOpenid(openid)
                     .map(UserInfo::getAvatar)
@@ -118,7 +117,7 @@ public class UserService {
 
             // 检查该路径是否存在
             if (avatar_path != null) {
-                java.nio.file.Path path = java.nio.file.Paths.get("./" + avatar_path);
+                java.nio.file.Path path = java.nio.file.Paths.get(avatar_path);
                 if (!java.nio.file.Files.exists(path)) {
                     return null;
                 }
@@ -134,13 +133,12 @@ public class UserService {
     /**
      * 获取当前登录用户信息
      */
-    public ApiResponse<UserInfo> getCurrentUser(String openId) {
-        if (!StringUtils.hasText(openId)) {
-            return ApiResponse.fail("openId 不能为空");
-        }
+    public ApiResponse<UserInfo> getCurrentUser(@NotBlank String openId) {
         try {
             UserInfo user = userRepository.findByOpenid(openId)
                     .orElseThrow(() -> new RuntimeException("用户不存在"));
+
+            user.setAvatar(AvatarUrlUtil.buildAvatarUrl(user.getAvatar(), baseUrl));
 
             return ApiResponse.success(user);
 
@@ -155,13 +153,10 @@ public class UserService {
      * 仅允许本人操作 —> 请在 Controller / 过滤器中校验操作者与 openId 是否一致
      */
     @Transactional
-    public ApiResponse<UserInfo> updateProfileByOpenId(String openId, String nickname, String avatar,
+    public ApiResponse<UserInfo> updateProfileByOpenId(@NotBlank String openId,
+                                                       String nickname, String avatar,
                                                        Integer userIdentity, String studentNo,
                                                        String major, String college, String phone) {
-        if (!StringUtils.hasText(openId)) {
-            return ApiResponse.fail("openId 不能为空");
-        }
-
         try {
             UserInfo user = userRepository.findByOpenid(openId)
                     .orElseThrow(() -> new RuntimeException("用户不存在"));
@@ -171,12 +166,7 @@ public class UserService {
             if (avatar != null) {
                 String oldAvatar = user.getAvatar();
                 if (oldAvatar != null) {
-                    java.nio.file.Path oldPath = java.nio.file.Paths.get("./" + oldAvatar);
-                    try {
-                        java.nio.file.Files.deleteIfExists(oldPath);
-                    } catch (Exception e) {
-                        logger.warn("删除旧头像失败，路径={}", oldPath, e);
-                    }
+                    FileUtil.deletePhysicalFile(oldAvatar);
                 }
                 user.setAvatar(avatar);
             }
@@ -187,7 +177,20 @@ public class UserService {
             if (phone != null) user.setPhone(phone);
 
             UserInfo updated = userRepository.save(user);
-            return ApiResponse.success(updated);
+
+            // 构造返回对象
+            UserInfo respUser = new UserInfo();
+            respUser.setId(updated.getId());
+            respUser.setNickname(updated.getNickname());
+            respUser.setUserIdentity(updated.getUserIdentity());
+            respUser.setStudentNo(updated.getStudentNo());
+            respUser.setMajor(updated.getMajor());
+            respUser.setCollege(updated.getCollege());
+            respUser.setPhone(updated.getPhone());
+            respUser.setStatus(updated.getStatus());
+            respUser.setAvatar(AvatarUrlUtil.buildAvatarUrl(updated.getAvatar(), baseUrl));
+
+            return ApiResponse.success(respUser);
         } catch (Exception e) {
             logger.error("updateProfileByOpenId failed for openId={}", openId, e);
             return ApiResponse.fail("更新用户信息失败");
@@ -198,7 +201,7 @@ public class UserService {
      * 查询用户是否存在
      */
     @Transactional(readOnly = true)
-    public UserInfo findUserByOpenId(String openId) {
+    public UserInfo findUserByOpenId(@NotBlank String openId) {
         try {
             return userRepository.findByOpenid(openId)
                     .orElseThrow(() -> new IllegalArgumentException("用户不存在"));
@@ -213,10 +216,9 @@ public class UserService {
      * 仅管理员操作 —> 建议从安全上下文获取角色，而不是信任传入的参数
      */
     @Transactional
-    public ApiResponse<UserInfo> banOrUnbanUser(String openId, boolean ban, String role) {
-        if (!StringUtils.hasText(openId)) {
-            return ApiResponse.fail("openId 不能为空");
-        }
+    public ApiResponse<UserInfo> banOrUnbanUser(@NotBlank String openId,
+                                                @NotNull boolean ban,
+                                                @NotBlank String role) {
 
         try {
             if (role == null || (!"ADMIN".equalsIgnoreCase(role) && !"SUPER_ADMIN".equalsIgnoreCase(role))) {
@@ -254,39 +256,26 @@ public class UserService {
 
 
     /**
-     * 根据ID查询用户信息
-     */
-    public ApiResponse<UserInfo> getUserByOpenId(String openId) {
-        if (!StringUtils.hasText(openId)) {
-            return ApiResponse.fail("openId 不能为空");
-        }
-        try {
-            Optional<UserInfo> userOpt = userRepository.findByOpenid(openId);
-            logger.debug("查询用户 openId = {}", openId);
-            if (userOpt.isPresent()) {
-                return ApiResponse.success(userOpt.get());
-            } else {
-                return ApiResponse.fail("用户不存在");
-            }
-        } catch (Exception e) {
-            logger.error("getUserByOpenId failed for openId={}", openId, e);
-            return ApiResponse.fail("查询用户失败");
-        }
-    }
-
-    /**
      * 根据角色返回不同层级的用户信息
      */
-    public ApiResponse<?> getMemberUserInfo(String openId, String role) {
+    public ApiResponse<?> getMemberUserInfo(@NotBlank String openId,
+                                            @NotBlank String role) {
         if ("ADMIN".equalsIgnoreCase(role) || "SUPER_ADMIN".equalsIgnoreCase(role)) {
             // 管理员返回全部信息
-            ApiResponse<UserInfo> response = getUserByOpenId(openId);
-            return response;
+            UserInfo response = userRepository.findByOpenid(openId)
+                    .orElseThrow(() -> new IllegalArgumentException("用户不存在"));
+
+            response.setAvatar(AvatarUrlUtil.buildAvatarUrl(response.getAvatar(), baseUrl));
+
+            return ApiResponse.success(response);
         } else {
             // 普通用户返回公开信息
             Optional<PublicUserInfo> publicInfoOpt = userRepository.findPublicUserInfoByOpenid(openId);
             if (publicInfoOpt.isPresent()) {
                 PublicUserInfo info = publicInfoOpt.get();
+
+                info.setAvatar(AvatarUrlUtil.buildAvatarUrl(info.getAvatar(), baseUrl));
+
                 return ApiResponse.success(info);
             } else {
                 return ApiResponse.fail("用户不存在");
@@ -297,7 +286,9 @@ public class UserService {
     /**
      * SUPER_ADMIN 修改用户角色
      */
-    public ApiResponse<UserInfo> updateUserRole(String openId, String newRole, String operatorRole) {
+    public ApiResponse<UserInfo> updateUserRole(@NotBlank String openId,
+                                                @NotBlank String newRole,
+                                                @NotBlank String operatorRole) {
         if (!"SUPER_ADMIN".equalsIgnoreCase(operatorRole)) {
             return ApiResponse.fail("没有权限修改用户角色");
         }

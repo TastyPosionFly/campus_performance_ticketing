@@ -31,7 +31,7 @@ public class Application {
 
     /**
      * 申请类型
-     * CREATE_ORG/JOIN_ORG/CHANGE_LEADER/EDIT_MEMBER/QUIT_ORG/EDIT_ALBUM/DISSOLVE_ORG 等
+     * CREATE_ORG/JOIN_ORG/DISBAND_ORG
      */
     @Column(name = "application_type", length = 40, nullable = false)
     private String applicationType;

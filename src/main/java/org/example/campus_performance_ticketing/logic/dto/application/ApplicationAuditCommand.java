@@ -1,12 +1,13 @@
-package org.example.campus_performance_ticketing.logic.dto;
+package org.example.campus_performance_ticketing.logic.dto.application;
 
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 
 /**
- * 单条申请审核指令DTO
+ * 单条申请审核指令 DTO
  */
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

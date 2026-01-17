@@ -57,6 +57,7 @@ application*-prod.properties
 ## Testing Data ##
 /data/avatar/*
 /data/org_album/*
+/data/org_avatar/*
 
 ## document ##
 /document/UML/

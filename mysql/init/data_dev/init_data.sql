@@ -45,5 +45,95 @@ VALUES
     (2, '/data/org_album/monalisa-500x500.jpg', 2, NOW(), '2026乐队排练现场'),
     (3, '/data/org_album/monalisa-500x500.jpg', 3, NOW(), '读书沙龙活动留影');
 
+-- =========================
+-- 6. 插入场地数据 (venues)
+-- 注意：manager_id=4 (David, VENUE_ADMIN), created_by=1 (Alice, SUPER_ADMIN)
+-- =========================
+INSERT INTO `venues` (`name`, `description`, `address`, `cover_image`, `photo_list`, `capacity`, `type`, `equipment_info`, `status`, `manager_id`, `created_by`, `created_at`, `updated_at`)
+VALUES
+    (
+        '主校区大礼堂',
+        '适合举办大型晚会、讲座和毕业典礼，拥有专业舞台和后台休息室。',
+        '主校区 A栋 101',
+        '/data/venue/monalisa-500x500.jpg',
+        '["/data/venue/monalisa-500x500.jpg", "/data/venue/monalisa-500x500.jpg"]', -- 模拟多张图
+        1200,
+        2, -- 类型：剧场/礼堂
+        '{"sound": "JBL 7.1专业音响", "lighting": "全套舞台灯光", "projector": true, "wifi": true, "mic_count": 8}',
+        1, -- 正常
+        4, -- David 管理
+        1, -- Alice 创建
+        NOW(), NOW()
+    ),
+    (
+        '图文信息中心',
+        '配备先进投影设备和舒适座椅，适合举办中小型会议和培训。',
+        '主校区 图书馆 305',
+        '/data/venue/monalisa-500x500.jpg',
+        '["/data/venue/monalisa-500x500.jpg"]',
+        50,
+        1, -- 类型：会议室
+        '{"sound": "普通会议音箱", "lighting": "普通照明", "projector": true, "wifi": true, "whiteboard": true}',
+        1, -- 正常
+        4, -- David 管理
+        1, -- Alice 创建
+        NOW(), NOW()
+    ),
+    (
+        '北欧草坪',
+        '宽敞的户外草坪，适合举办音乐节、户外电影放映和社交活动。',
+        '北校区 中心草坪',
+        '/data/venue/monalisa-500x500.jpg',
+        NULL, -- 无详情图
+        3000,
+        3, -- 类型：户外场地
+        '{"sound": "需申请移动音箱", "lighting": "无", "power_supply": "220V/380V接口"}',
+        0, -- 维护中 (草坪养护)
+        4,
+        1,
+        NOW(), NOW()
+    );
 
+-- =========================
+-- 7. 插入场地开放时间 (venue_opening_hours)
+-- 假设 ID: 1=大礼堂, 2=小礼堂, 3=音乐堂
+-- =========================
+
+-- 7.1 大礼堂：周一到周五晚上开放，周末全天开放
+INSERT INTO `venue_opening_hours` (`venue_id`, `day_of_week`, `open_time`, `close_time`, `is_closed`) VALUES
+    (1, 1, '18:00:00', '22:00:00', 0), -- 周一晚上
+    (1, 2, '18:00:00', '22:00:00', 0), -- 周二晚上
+    (1, 3, '18:00:00', '22:00:00', 0), -- 周三晚上
+    (1, 4, '18:00:00', '22:00:00', 0), -- 周四晚上
+    (1, 5, '18:00:00', '22:00:00', 0), -- 周五晚上
+    (1, 6, '09:00:00', '22:00:00', 0), -- 周六全天
+    (1, 7, '09:00:00', '22:00:00', 0); -- 周日全天
+
+-- 7.2 小礼堂：周一到周五全天开放，周末休息
+INSERT INTO `venue_opening_hours` (`venue_id`, `day_of_week`, `open_time`, `close_time`, `is_closed`) VALUES
+    (2, 1, '08:00:00', '21:00:00', 0),
+    (2, 2, '08:00:00', '21:00:00', 0),
+    (2, 3, '08:00:00', '21:00:00', 0),
+    (2, 4, '08:00:00', '21:00:00', 0),
+    (2, 5, '08:00:00', '21:00:00', 0),
+    (2, 6, '00:00:00', '00:00:00', 1), -- 周六休息
+    (2, 7, '00:00:00', '00:00:00', 1); -- 周日休息
+
+-- 7.3 北欧草坪：周一到周四开放，周五到周日延长开放时间
+INSERT INTO `venue_opening_hours` (`venue_id`, `day_of_week`, `open_time`, `close_time`, `is_closed`) VALUES
+    (3, 1, '10:00:00', '20:00:00', 0),
+    (3, 2, '10:00:00', '20:00:00', 0),
+    (3, 3, '10:00:00', '20:00:00', 0),
+    (3, 4, '10:00:00', '20:00:00', 0),
+    (3, 5, '10:00:00', '22:00:00', 0),
+    (3, 6, '10:00:00', '22:00:00', 0),
+    (3, 7, '10:00:00', '22:00:00', 0);
+
+-- =========================
+-- 8. 插入场地特殊屏蔽日期 (venue_blocked_days)
+-- =========================
+INSERT INTO `venue_blocked_days` (`venue_id`, `blocked_date`, `reason`, `created_by`, `created_at`) VALUES
+    (1, DATE_ADD(CURDATE(), INTERVAL 5 DAY), '全校电路检修', 4, NOW()), -- 5天后大礼堂停电检修
+    (1, DATE_ADD(CURDATE(), INTERVAL 20 DAY), '学校官方占用-校庆彩排', 4, NOW()), -- 20天后校庆占用
+    (2, DATE_ADD(CURDATE(), INTERVAL 1 DAY), '会议室投影仪维修', 4, NOW()); -- 明天会议室修投影
 

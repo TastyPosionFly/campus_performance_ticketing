@@ -9,6 +9,9 @@ SOURCE /docker-entrypoint-initdb.d/schema/01_user_table.sql;
 SOURCE /docker-entrypoint-initdb.d/schema/02_organization_table.sql;
 SOURCE /docker-entrypoint-initdb.d/schema/03_user_organization_table.sql;
 SOURCE /docker-entrypoint-initdb.d/schema/04_organization_photo_table.sql;
+SOURCE /docker-entrypoint-initdb.d/schema/05_venue_table.sql;
+SOURCE /docker-entrypoint-initdb.d/schema/06_venue_opening_hours_table.sql;
+SOURCE /docker-entrypoint-initdb.d/schema/07_venue_block_day.sql;
 SOURCE /docker-entrypoint-initdb.d/schema/15_application_table.sql;
 
 -- 3. 初始化数据

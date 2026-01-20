@@ -81,7 +81,7 @@ public class OrganizationAlbumService {
             if (photoFile != null && !photoFile.isEmpty()) {
                 savedPhotoUrl = FileUtil.saveAvatar(photoFile, safeDir, null);
             } else if (body.getPhotoUrl() != null && body.getPhotoUrl().startsWith("http")) {
-                savedPhotoUrl = FileUtil.saveAvatarFromUrl(body.getPhotoUrl(), safeDir, null);
+                savedPhotoUrl = FileUtil.saveImageFromUrl(body.getPhotoUrl(), safeDir);
             } else {
                 deleteAlbumRecordQuietly(albumId);
                 return ApiResponse.fail("必须上传图片文件或提供图片URL");

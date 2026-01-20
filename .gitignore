@@ -58,6 +58,7 @@ application*-prod.properties
 /data/avatar/*
 /data/org_album/*
 /data/org_avatar/*
+/data/venue_album/*
 
 ## document ##
 /document/UML/

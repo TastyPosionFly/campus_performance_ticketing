@@ -17,6 +17,9 @@ public class WebResourceConfig implements WebMvcConfigurer {
     @Value("${org.album.upload-dir}")
     private String orgAlbumDir;
 
+    @Value("${venue.album.upload-dir}")
+    private String venueAlbumDir;
+
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
         registry.addResourceHandler("/data/avatar/**")
@@ -27,6 +30,9 @@ public class WebResourceConfig implements WebMvcConfigurer {
 
         registry.addResourceHandler("/data/org_album/**")
                 .addResourceLocations("file:" + ensureEndsWithSlash(orgAlbumDir));
+
+        registry.addResourceHandler("/data/venue_album/**")
+                .addResourceLocations("file:" + ensureEndsWithSlash(venueAlbumDir));
     }
 
     private String ensureEndsWithSlash(String dir) {

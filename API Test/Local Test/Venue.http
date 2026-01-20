@@ -1,0 +1,114 @@
+### @env local
+
+### 超级管理员用户登入
+POST {{baseURL}}/auth/login
+Content-Type: application/json
+
+{
+  "openid": "openid_001"
+}
+
+> {% client.global.set("token", response.body.token); %}
+
+
+### 普通用户登入
+POST {{baseURL}}/auth/login
+Content-Type: application/json
+
+{
+  "openid": "openid_002"
+}
+
+> {% client.global.set("token", response.body.token); %}
+
+
+### 获取图片
+GET http://localhost:8080/data/venue_album/05f76f69-0659-4d6c-a0ed-5b21ace87ff6.jpg
+Accept: application/json
+Authorization: Bearer {{token}}
+
+### 1. 创建场地 (带文件上传)
+POST {{baseURL}}/venues
+Authorization: {{token}}
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="name"
+
+测试大礼堂
+--WebAppBoundary
+Content-Disposition: form-data; name="description"
+
+这是一个用于测试 API 的多功能大礼堂，包含顶级音响设备。
+--WebAppBoundary
+Content-Disposition: form-data; name="address"
+
+科技楼 B1 层
+--WebAppBoundary
+Content-Disposition: form-data; name="capacity"
+
+500
+--WebAppBoundary
+Content-Disposition: form-data; name="type"
+
+2
+--WebAppBoundary
+Content-Disposition: form-data; name="equipmentInfo"
+
+{"wifi": true, "sound": "Dolby 7.1", "projector": true}
+--WebAppBoundary
+Content-Disposition: form-data; name="managerId"
+
+2
+--WebAppBoundary
+Content-Disposition: form-data; name="coverImageFile"; filename="cover.jpg"
+Content-Type: image/jpeg
+
+< ./images/cover.jpg
+--WebAppBoundary
+Content-Disposition: form-data; name="photoFiles"; filename="stage.jpg"
+Content-Type: image/jpeg
+
+< ./images/stage.jpg
+--WebAppBoundary
+Content-Disposition: form-data; name="photoFiles"; filename="seats.jpg"
+Content-Type: image/jpeg
+
+< ./images/seats.jpg
+--WebAppBoundary--
+
+### 2. 创建场地 (修复版)
+POST {{baseURL}}/venues
+Authorization: {{token}}
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+Accept: application/json
+
+--WebAppBoundary
+Content-Disposition: form-data; name="name"
+
+纯URL测试会议室
+--WebAppBoundary
+Content-Disposition: form-data; name="address"
+
+图书馆202
+--WebAppBoundary
+Content-Disposition: form-data; name="capacity"
+
+50
+--WebAppBoundary
+Content-Disposition: form-data; name="type"
+
+1
+--WebAppBoundary
+Content-Disposition: form-data; name="coverImageUrl"
+
+https://picsum.photos/id/1018/500/300.jpg
+--WebAppBoundary
+Content-Disposition: form-data; name="photoUrlList"
+
+https://picsum.photos/id/1025/500/300.jpg
+--WebAppBoundary
+Content-Disposition: form-data; name="equipmentInfo"
+
+{"wifi": true}
+--WebAppBoundary--

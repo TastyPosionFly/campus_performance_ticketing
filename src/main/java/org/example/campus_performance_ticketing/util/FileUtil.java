@@ -134,4 +134,56 @@ public class FileUtil {
         }
         return false;
     }
+
+    /**
+     * 保存普通图片文件（如场地图片），不强制压缩为头像尺寸
+     */
+    public static String saveImage(MultipartFile file, String uploadDir) throws IOException {
+        if (file == null || file.isEmpty()) return null;
+        String ext = getFileExtension(file.getOriginalFilename());
+        if (ext.isEmpty()) ext = ".jpg";
+
+        String fileName = UUID.randomUUID() + ext;
+        String finalDir = normalizeUploadDir(uploadDir);
+        Files.createDirectories(Paths.get(finalDir));
+        File dest = new File(finalDir, fileName);
+
+        // 使用 Thumbnailator 进行简单的质量压缩，防止图片过大，但不裁剪
+        Thumbnails.of(file.getInputStream())
+                .scale(1.0) // 保持原尺寸
+                .outputQuality(0.8) // 80% 质量
+                .toFile(dest);
+
+        return finalDir + fileName; // 返回相对路径或绝对路径，取决于 uploadDir
+    }
+
+    // FileUtil.java 中新增
+
+    /**
+     * 下载URL图片并保存到本地（通用版，不强制压缩尺寸）
+     * @param imageUrl 图片URL
+     * @param uploadDir 上传保存目录
+     * @return 完整保存路径（含文件名）
+     */
+    public static String saveImageFromUrl(String imageUrl, String uploadDir) throws IOException {
+        if (imageUrl == null || !imageUrl.startsWith("http")) return null;
+
+        // 1. 获取后缀
+        String ext = getUrlFileExtension(imageUrl);
+        if (ext == null || ext.isEmpty()) ext = ".jpg";
+
+        // 2. 准备目录和文件名
+        String fileName = UUID.randomUUID() + ext;
+        String finalDir = normalizeUploadDir(uploadDir); // 确保目录格式正确
+        Files.createDirectories(Paths.get(finalDir));
+        File dest = new File(finalDir, fileName);
+
+        // 3. 下载并保存 (使用 Thumbnailator 进行简单压缩优化，防止下载超大图撑爆硬盘，但不裁剪)
+        Thumbnails.of(new URL(imageUrl))
+                .scale(1.0) // 保持原尺寸
+                .outputQuality(0.8) // 80% 质量
+                .toFile(dest);
+
+        return finalDir + fileName;
+    }
 }

@@ -27,7 +27,7 @@ GET http://localhost:8080/data/venue_album/05f76f69-0659-4d6c-a0ed-5b21ace87ff6.
 Accept: application/json
 Authorization: Bearer {{token}}
 
-### 1. 创建场地 (带文件上传)
+### 1. 创建场地 (带文件上传) (Pass)
 POST {{baseURL}}/venues
 Authorization: {{token}}
 Content-Type: multipart/form-data; boundary=WebAppBoundary
@@ -77,7 +77,7 @@ Content-Type: image/jpeg
 < ./images/seats.jpg
 --WebAppBoundary--
 
-### 2. 创建场地 (修复版)
+### 2. 创建场地 (修复版) (Pass)
 POST {{baseURL}}/venues
 Authorization: {{token}}
 Content-Type: multipart/form-data; boundary=WebAppBoundary
@@ -112,3 +112,153 @@ Content-Disposition: form-data; name="equipmentInfo"
 
 {"wifi": true}
 --WebAppBoundary--
+
+### 3. 简单更新：只修改名称和描述 (无文件操作) (Pass)
+POST {{baseURL}}/venues/update
+Authorization: {{token}}
+Accept: application/json
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="id"
+
+4
+--WebAppBoundary
+Content-Disposition: form-data; name="name"
+
+已更新的场地名称(测试)
+--WebAppBoundary
+Content-Disposition: form-data; name="description"
+
+这是通过接口更新后的描述信息，状态也改为了维护中。
+--WebAppBoundary
+Content-Disposition: form-data; name="status"
+
+0
+--WebAppBoundary--
+
+### 4. 混合上传测试 (文件+URL) (Pass)
+POST {{baseURL}}venues/update
+Authorization: {{token}}
+Accept: application/json
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="id"
+
+4
+--WebAppBoundary
+Content-Disposition: form-data; name="newPhotoUrlList"
+
+https://picsum.photos/200/300.jpg
+--WebAppBoundary
+Content-Disposition: form-data; name="newPhotoFiles"; filename="test_image.jpg"
+Content-Type: image/jpeg
+
+< ./images/stage.jpg
+--WebAppBoundary--
+
+### 5. 删除指定轮播图 (需要知道 UUID)
+POST {{baseURL}}/venues/update
+Authorization: {{token}}
+Accept: application/json
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="id"
+
+4
+--WebAppBoundary
+Content-Disposition: form-data; name="deletePhotoIds"
+
+701c605f-d95f-482e-adfa-c5001aa421c5
+--WebAppBoundary--
+
+### 6. 终极测试：替换指定轮播图 (UUID 换 文件) (Pass)
+POST {{baseURL}}/venues/update
+Authorization: {{token}}
+Accept: application/json
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="id"
+
+4
+--WebAppBoundary
+Content-Disposition: form-data; name="replacePhotoMap"
+
+{"e58377b4-35bd-4b39-84f0-fabc07b2afe3": 0}
+--WebAppBoundary
+Content-Disposition: form-data; name="replaceFiles"; filename="replaced_seat.jpg"
+Content-Type: image/jpeg
+
+< ./images/seats.jpg
+--WebAppBoundary--
+
+### 7. 混合测试：同时进行删除、新增和基础信息修改 (Pass)
+POST {{baseURL}}/venues/update
+Authorization: {{token}}
+Accept: application/json
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="id"
+
+4
+--WebAppBoundary
+Content-Disposition: form-data; name="name"
+
+混合操作测试场地
+--WebAppBoundary
+Content-Disposition: form-data; name="newPhotoUrlList"
+
+https://picsum.photos/id/30/500/300.jpg
+--WebAppBoundary
+Content-Disposition: form-data; name="deletePhotoIds"
+
+e58377b4-35bd-4b39-84f0-fabc07b2afe3
+--WebAppBoundary
+Content-Disposition: form-data; name="equipmentInfo"
+
+{"wifi": false, "projector": true, "remark": "更新后的设备列表"}
+--WebAppBoundary--
+
+### 8. 删除场地 - 每日凌晨三点彻底删除， 在此之前可以恢复 (Pass)
+DELETE {{baseURL}}/venues/4/delete
+Authorization: {{token}}
+Accept: application/json
+
+### 9. 查询所有场地列表 (无参数) (Pass)
+GET {{baseURL}}/venues
+Authorization: {{token}}
+Accept: application/json
+
+### 10. 根据名称模糊搜索场地 (Pass)
+# 预期结果：返回名称中包含 "测试" 的场地列表
+GET {{baseURL}}/venues?name=测试
+Authorization: {{token}}
+Accept: application/json
+
+### 11. 根据类型筛选场地 (Pass)
+# 预期结果：返回 type=2 (假设是礼堂) 的所有场地
+GET {{baseURL}}/venues?type=2
+Authorization: {{token}}
+Accept: application/json
+
+### 12. 根据状态筛选场地 (Pass)
+# 预期结果：返回 status=1 (正常) 的所有场地
+GET {{baseURL}}/venues?status=1
+Authorization: {{token}}
+Accept: application/json
+
+### 13. 组合复杂查询 (名称 + 类型 + 状态) (Pass)
+# 预期结果：同时满足这三个条件的场地
+GET {{baseURL}}/venues?name=测试&type=2&status=1
+Authorization: {{token}}
+Accept: application/json
+
+### 14. 获取单个场地详情 (Pass)
+# 注意：确保 ID=4 (或你刚才创建的ID) 存在
+GET {{baseURL}}/venues/5
+Authorization: {{token}}
+Accept: application/json

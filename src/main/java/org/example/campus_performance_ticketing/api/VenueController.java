@@ -3,9 +3,11 @@ package org.example.campus_performance_ticketing.api;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
+import org.example.campus_performance_ticketing.logic.VenueOpeningHoursService;
 import org.example.campus_performance_ticketing.logic.VenueService;
 import org.example.campus_performance_ticketing.logic.dto.ApiResponse;
 import org.example.campus_performance_ticketing.logic.dto.venue.CreateVenueDto;
+import org.example.campus_performance_ticketing.logic.dto.venue.OpeningHoursDto;
 import org.example.campus_performance_ticketing.logic.dto.venue.UpdateVenueDto;
 import org.example.campus_performance_ticketing.logic.dto.venue.VenueDetailDto;
 import org.springframework.http.MediaType;
@@ -18,8 +20,11 @@ import java.util.List;
 public class VenueController {
 
     private final VenueService venueService;
+    private final VenueOpeningHoursService venueOpeningHoursService;
 
-    public VenueController(VenueService venueService) {
+    public VenueController(VenueService venueService,
+                           VenueOpeningHoursService venueOpeningHoursService) {
+        this.venueOpeningHoursService = venueOpeningHoursService;
         this.venueService = venueService;
     }
 
@@ -95,4 +100,30 @@ public class VenueController {
         String openId = (String) request.getAttribute("openid");
         return venueService.deleteVenue(id, openId);
     }
+
+
+    // 场地开放时间相关接口
+    /**
+     * 获取开放时间
+     * GET /api/venues/{venueId}/hours
+     */
+    @GetMapping("/{venueId}/hours")
+    public ApiResponse<List<OpeningHoursDto>> getOpeningHours(@PathVariable @NotNull Long venueId) {
+        return venueOpeningHoursService.getOpeningHours(venueId);
+    }
+
+    /**
+     * 设置开放时间 (批量)
+     * POST /api/venues/{venueId}/hours
+     */
+    @PostMapping("/{venueId}/hours")
+    public ApiResponse<Void> setOpeningHours(
+            @PathVariable @NotNull Long venueId,
+            @RequestBody @Valid List<OpeningHoursDto> dtoList,
+            HttpServletRequest request
+    ) {
+        String openId = (String) request.getAttribute("openid");
+        return venueOpeningHoursService.setOpeningHours(venueId, dtoList, openId);
+    }
+
 }

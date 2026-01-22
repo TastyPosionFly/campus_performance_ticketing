@@ -43,7 +43,7 @@ public class Venue {
     @Column(nullable = false)
     private String address;
 
-    /** 封面图片URL */
+    /** 封面图片 URL */
     @Column(name = "cover_image")
     private String coverImage;
 

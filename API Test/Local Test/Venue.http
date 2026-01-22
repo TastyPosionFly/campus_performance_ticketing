@@ -16,14 +16,14 @@ POST {{baseURL}}/auth/login
 Content-Type: application/json
 
 {
-  "openid": "openid_002"
+  "openid": "openid_003"
 }
 
 > {% client.global.set("token", response.body.token); %}
 
 
 ### 获取图片
-GET http://localhost:8080/data/venue_album/05f76f69-0659-4d6c-a0ed-5b21ace87ff6.jpg
+GET http://localhost:8080/data/venue_album/de08eb41-b7cb-4f71-b009-b3a8c6f78417.jpg
 Accept: application/json
 Authorization: Bearer {{token}}
 
@@ -262,3 +262,38 @@ Accept: application/json
 GET {{baseURL}}/venues/5
 Authorization: {{token}}
 Accept: application/json
+
+### 15 获取场地开放时间 (Pass)
+GET {{baseURL}}/venues/3/hours
+Authorization: {{token}}
+Accept: application/json
+
+### 16 设置场地开放时间 (周一至周五开放，周六日休息) (Pass)
+POST {{baseURL}}/venues/3/hours
+Authorization: {{token}}
+Content-Type: application/json
+
+[
+  {
+    "dayOfWeek": 1,
+    "isClosed": false,
+    "openTime": "09:00:00",
+    "closeTime": "22:00:00"
+  },
+  {
+    "dayOfWeek": 2,
+    "isClosed": false,
+    "openTime": "09:00:00",
+    "closeTime": "22:00:00"
+  },
+  {
+    "dayOfWeek": 6,
+    "isClosed": true,
+    "openTime": "00:00:00",
+    "closeTime": "00:00:00"
+  },
+  {
+    "dayOfWeek": 7,
+    "isClosed": true
+  }
+]

@@ -35,7 +35,6 @@ public class VenueService {
     private final VenueRepository venueRepository;
     private final UserRepository userRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
-    ;
 
     private static final Logger logger = Logger.getLogger(VenueService.class.getName());
 

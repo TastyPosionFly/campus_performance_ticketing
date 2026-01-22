@@ -70,6 +70,14 @@ public class ApplicationService {
         this.jsonHelper = jsonHelper;
     }
 
+
+    /**
+     * 查询待处理申请列表（管理员或组织首领）
+     * @param openId
+     * @param applicationType
+     * @param status
+     * @return
+     */
     @Transactional(readOnly = true)
     public ApiResponse<List<PendingApplicationDto>> listApplications(@NotBlank String openId,
                                                                      String applicationType,

@@ -59,6 +59,10 @@ application*-prod.properties
 /data/org_album/*
 /data/org_avatar/*
 /data/venue_album/*
+/data/performance_post/*
+/data/staff_photo/*
+/data/temp/performance_post/*
+/data/temp/staff_photo/*
 
 ## document ##
 /document/UML/

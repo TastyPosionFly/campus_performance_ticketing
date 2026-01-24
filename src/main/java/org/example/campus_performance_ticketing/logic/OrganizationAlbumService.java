@@ -3,6 +3,7 @@ package org.example.campus_performance_ticketing.logic;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import lombok.RequiredArgsConstructor;
 import org.example.campus_performance_ticketing.dao.OrganizationAlbumRepository;
 import org.example.campus_performance_ticketing.dao.OrganizationInfoRepository;
 import org.example.campus_performance_ticketing.dao.OrganizationMemberRepository;
@@ -28,6 +29,7 @@ import java.util.logging.Logger;
 
 @Service
 @Validated
+@RequiredArgsConstructor
 public class OrganizationAlbumService {
     private final OrganizationAlbumRepository organizationAlbumRepository;
     private final OrganizationInfoRepository organizationInfoRepository;
@@ -41,15 +43,6 @@ public class OrganizationAlbumService {
 
     @Value("${org.album.upload-dir}")
     private String albumUploadDir;
-
-    public OrganizationAlbumService(OrganizationAlbumRepository organizationAlbumRepository,
-                                    OrganizationInfoRepository organizationInfoRepository,
-                                    OrganizationMemberRepository organizationMemberRepository, UserRepository userRepository) {
-        this.organizationAlbumRepository = organizationAlbumRepository;
-        this.organizationInfoRepository = organizationInfoRepository;
-        this.organizationMemberRepository = organizationMemberRepository;
-        this.userRepository = userRepository;
-    }
 
     /**
      * 上传图片 组织 LEADER / MANAGER 成员可上传

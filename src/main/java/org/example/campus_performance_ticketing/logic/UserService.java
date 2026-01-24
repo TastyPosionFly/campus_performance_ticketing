@@ -2,6 +2,7 @@ package org.example.campus_performance_ticketing.logic;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import lombok.RequiredArgsConstructor;
 import org.example.campus_performance_ticketing.dao.UserRepository;
 import org.example.campus_performance_ticketing.logic.dto.ApiResponse;
 import org.example.campus_performance_ticketing.logic.dto.user.LoginResult;
@@ -25,6 +26,8 @@ import java.util.Optional;
 
 @Service
 @Validated
+@RequiredArgsConstructor
+
 public class UserService {
 
     private final UserRepository userRepository;
@@ -35,11 +38,6 @@ public class UserService {
     @Value("${file.base.url}")
     private String baseUrl;
 
-
-    public UserService(UserRepository userRepository, JwtTokenUtil jwtTokenUtil) {
-        this.userRepository = userRepository;
-        this.jwtTokenUtil = jwtTokenUtil;
-    }
 
     /**
      * 微信登录 / 自动注册

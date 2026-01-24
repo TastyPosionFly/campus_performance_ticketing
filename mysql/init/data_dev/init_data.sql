@@ -137,3 +137,41 @@ INSERT INTO `venue_blocked_days` (`venue_id`, `blocked_date`, `reason`, `created
     (1, DATE_ADD(CURDATE(), INTERVAL 20 DAY), '学校官方占用-校庆彩排', 4, NOW()), -- 20天后校庆占用
     (2, DATE_ADD(CURDATE(), INTERVAL 1 DAY), '会议室投影仪维修', 4, NOW()); -- 明天会议室修投影
 
+
+-- ==========================================
+-- 9. 插入演出：毕业大戏《雷雨》 (社团举办)
+-- ==========================================
+INSERT INTO `performance` (`id`, `title`, `description`, `poster_url`, `category_id`, `organizer_type`, `organizer_id`, `publish_status`, `created_at`, `updated_at`)
+VALUES
+    (1, '2024毕业大戏《雷雨》', '经典话剧《雷雨》重新演绎，致敬经典，感悟人生。由话剧社倾情奉献。', 'data/performance_post/monalisa-500x500.jpg', 1, 'ORGANIZATION', 1, 1, NOW(), NOW());
+
+-- 插入场次：周五晚场 和 周六晚场
+INSERT INTO `performance_session` (`performance_id`, `venue_id`, `start_time`, `end_time`, `ticket_total`, `ticket_surplus`)
+VALUES
+    (1, 1, '2024-06-20 19:00:00', '2024-06-20 21:30:00', 500, 500),
+    (1, 1, '2024-06-21 19:00:00', '2024-06-21 21:30:00', 500, 480);
+
+-- 插入人员：导演（校内用户）和 主演（校外特邀）
+INSERT INTO `performance_staff` (`performance_id`, `user_id`, `staff_name`, `staff_type`, `staff_avatar`, `introduction`, `sort_order`, `created_at`)
+VALUES
+    (1, 1, '张导', '总导演', 'data/staff_photo/monalisa-500x500.jpg', '资深校园话剧导演，曾执导《茶馆》。', 1, NOW()),
+    (1, NULL, '李特邀', '特邀主演', 'data/staff_photo/monalisa-500x500.jpg', '省话剧团青年演员，客串饰演周朴园。', 2, NOW()),
+    (1, 2, '王同学', '主演', 'data/staff_photo/monalisa-500x500.jpg', '表演系大四学生，饰演周萍。', 3, NOW());
+
+
+-- ==========================================
+-- 10. 插入演出：第十届校园十大歌手决赛 (个人/学生会主席申请)
+-- ==========================================
+INSERT INTO `performance` (`id`, `title`, `description`, `poster_url`, `category_id`, `organizer_type`, `organizer_id`, `publish_status`, `created_at`, `updated_at`)
+VALUES
+    (2, '第十届校园十大歌手决赛', '巅峰对决，谁是歌王？', 'data/performance_post/monalisa-500x500.jpg', 2, 'USER', 1, 1, NOW(), NOW());
+
+-- 插入场次：只有一场
+INSERT INTO `performance_session` (`performance_id`, `venue_id`, `start_time`, `end_time`, `ticket_total`, `ticket_surplus`)
+VALUES
+    (2, 1, '2024-05-15 18:00:00', '2024-05-15 22:00:00', 1000, 20);
+
+-- 插入人员
+INSERT INTO `performance_staff` (`performance_id`, `user_id`, `staff_name`, `staff_type`, `staff_avatar`, `introduction`, `sort_order`, `created_at`)
+VALUES
+    (2, 2, '陈主持', '主持人', 'data/staff_photo/monalisa-500x500.jpg', '广播台金牌主持。', 1, NOW());

@@ -186,4 +186,38 @@ public class FileUtil {
 
         return finalDir + fileName;
     }
+
+    /**
+     * 将文件从源路径移动到目标目录
+     * @param sourcePath 源文件完整路径 (数据库中存的路径，可能包含 ./)
+     * @param targetDir 目标目录 (配置文件中的目录)
+     * @return 移动后的新文件路径
+     */
+    public static String moveFile(String sourcePath, String targetDir) throws IOException {
+        if (sourcePath == null || sourcePath.isEmpty()) return null;
+
+        // 1. 处理路径格式
+        String cleanSource = "./" + sourcePath;
+        String cleanTargetDir = normalizeUploadDir(targetDir);
+
+        File srcFile = new File(cleanSource);
+        if (!srcFile.exists() || !srcFile.isFile()) {
+            // 如果源文件不存在，可能已经是正式路径，或者数据有问题，直接返回原路径
+            logger.warning("移动文件失败，源文件不存在: " + cleanSource);
+            return sourcePath;
+        }
+
+        // 2. 准备目标文件
+        String fileName = srcFile.getName();
+        Files.createDirectories(Paths.get(cleanTargetDir));
+        File destFile = new File(cleanTargetDir, fileName);
+
+        // 3. 移动 (REPLACE_EXISTING 覆盖同名)
+        Files.move(srcFile.toPath(), destFile.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+
+        logger.info("文件已移动: " + cleanSource + " -> " + cleanTargetDir + fileName);
+
+        // 4. 返回新路径 (保持 ./ 前缀风格以适配前端访问)
+        return cleanTargetDir + fileName;
+    }
 }

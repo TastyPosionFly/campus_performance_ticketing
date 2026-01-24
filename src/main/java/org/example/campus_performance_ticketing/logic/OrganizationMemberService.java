@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.transaction.Transactional;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import lombok.RequiredArgsConstructor;
 import org.example.campus_performance_ticketing.dao.ApplicationRepository;
 import org.example.campus_performance_ticketing.dao.OrganizationInfoRepository;
 import org.example.campus_performance_ticketing.dao.OrganizationMemberRepository;
@@ -30,6 +31,8 @@ import java.util.logging.Logger;
 
 @Service
 @Validated
+@RequiredArgsConstructor
+
 public class OrganizationMemberService {
     private final OrganizationMemberRepository organizationMemberRepository;
     private final OrganizationInfoRepository organizationInfoRepository;
@@ -41,15 +44,6 @@ public class OrganizationMemberService {
     @Value("${file.base.url}")
     private String baseUrl;
 
-    public OrganizationMemberService (OrganizationMemberRepository organizationMemberRepository,
-                                      OrganizationInfoRepository organizationInfoRepository,
-                                      UserRepository userRepository,
-                                      ApplicationRepository applicationRepository) {
-        this.organizationMemberRepository = organizationMemberRepository;
-        this.organizationInfoRepository = organizationInfoRepository;
-        this.userRepository = userRepository;
-        this.applicationRepository = applicationRepository;
-    }
 
     /**
      * 申请加入组织

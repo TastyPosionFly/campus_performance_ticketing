@@ -2,6 +2,7 @@ package org.example.campus_performance_ticketing.logic;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import lombok.RequiredArgsConstructor;
 import org.example.campus_performance_ticketing.dao.ApplicationRepository;
 import org.example.campus_performance_ticketing.dao.OrganizationAlbumRepository;
 import org.example.campus_performance_ticketing.dao.OrganizationInfoRepository;
@@ -31,6 +32,7 @@ import java.util.logging.Logger;
  */
 @Service
 @Validated
+@RequiredArgsConstructor
 public class OrganizationService {
 
     private final OrganizationInfoRepository organizationInfoRepository;
@@ -43,15 +45,6 @@ public class OrganizationService {
     @Value ("${file.base.url}")
     private String baseUrl;
 
-    public OrganizationService(OrganizationInfoRepository organizationInfoRepository,
-                               UserRepository userRepository,
-                               ApplicationRepository applicationRepository,
-                               OrganizationAlbumRepository organizationAlbumRepository) {
-        this.organizationAlbumRepository = organizationAlbumRepository;
-        this.organizationInfoRepository = organizationInfoRepository;
-        this.userRepository = userRepository;
-        this.applicationRepository = applicationRepository;
-    }
 
     /**
      * 申请创建组织

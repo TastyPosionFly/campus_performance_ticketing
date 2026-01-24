@@ -4,6 +4,7 @@ package org.example.campus_performance_ticketing.logic;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import lombok.RequiredArgsConstructor;
 import org.example.campus_performance_ticketing.dao.UserRepository;
 import org.example.campus_performance_ticketing.dao.VenueOpeningHoursRepository;
 import org.example.campus_performance_ticketing.dao.VenueRepository;
@@ -25,20 +26,14 @@ import java.util.stream.Collectors;
 
 @Service
 @Validated
+@RequiredArgsConstructor
+
 public class VenueOpeningHoursService {
     private final VenueRepository venueRepository;
     private final VenueOpeningHoursRepository openingHoursRepository;
     private final UserRepository userRepository;
 
     private static final Logger logger = Logger.getLogger(VenueOpeningHoursService.class.getName());
-
-    public VenueOpeningHoursService(VenueRepository venueRepository,
-                                    VenueOpeningHoursRepository openingHoursRepository,
-                                    UserRepository userRepository) {
-        this.venueRepository = venueRepository;
-        this.openingHoursRepository = openingHoursRepository;
-        this.userRepository = userRepository;
-    }
 
     /**
      * 获取指定场地的开放时间列表

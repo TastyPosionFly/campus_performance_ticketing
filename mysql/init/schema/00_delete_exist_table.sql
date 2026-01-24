@@ -1,4 +1,7 @@
 DROP TABLE IF ExISTS application;
+DROP TABLE IF EXISTS performance_staff;
+DROP TABLE IF EXISTS performance_session;
+DROP TABLE IF EXISTS performance;
 DROP TABLE IF EXISTS venue_blocked_days;
 DROP TABLE IF EXISTS venue_opening_hours;
 DROP TABLE IF EXISTS venues;

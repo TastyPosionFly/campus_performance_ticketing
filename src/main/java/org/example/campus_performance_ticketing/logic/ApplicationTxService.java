@@ -2,15 +2,10 @@ package org.example.campus_performance_ticketing.logic;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
+import org.example.campus_performance_ticketing.dao.*;
 import org.example.campus_performance_ticketing.logic.dto.application.ApplicationAuditCommand;
-import org.example.campus_performance_ticketing.model.Application;
-import org.example.campus_performance_ticketing.model.OrganizationInfo;
-import org.example.campus_performance_ticketing.model.OrganizationMember;
-import org.example.campus_performance_ticketing.model.UserInfo;
-import org.example.campus_performance_ticketing.dao.ApplicationRepository;
-import org.example.campus_performance_ticketing.dao.OrganizationInfoRepository;
-import org.example.campus_performance_ticketing.dao.OrganizationMemberRepository;
-import org.example.campus_performance_ticketing.dao.UserRepository;
+import org.example.campus_performance_ticketing.model.*;
 import org.example.campus_performance_ticketing.util.JsonHelper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -19,25 +14,16 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 
 @Service
+@RequiredArgsConstructor
 public class ApplicationTxService {
 
     private final UserRepository userRepository;
     private final ApplicationRepository applicationRepository;
     private final OrganizationInfoRepository organizationInfoRepository;
     private final OrganizationMemberRepository organizationMemberRepository;
+    // 新增：引入演出仓库
+    private final PerformanceRepository performanceRepository;
     private final JsonHelper jsonHelper;
-
-    public ApplicationTxService(UserRepository userRepository,
-                                ApplicationRepository applicationRepository,
-                                OrganizationInfoRepository organizationInfoRepository,
-                                OrganizationMemberRepository organizationMemberRepository,
-                                JsonHelper jsonHelper) {
-        this.userRepository = userRepository;
-        this.applicationRepository = applicationRepository;
-        this.organizationInfoRepository = organizationInfoRepository;
-        this.organizationMemberRepository = organizationMemberRepository;
-        this.jsonHelper = jsonHelper;
-    }
 
     /**
      * 单条审核：独立事务，失败只回滚这一条，不影响其它条
@@ -52,29 +38,18 @@ public class ApplicationTxService {
                 .orElseThrow(() -> new IllegalArgumentException("申请不存在"));
 
         if (app.getStatus() != 1) {
-            throw new IllegalStateException("不是待审核");
+            throw new IllegalStateException("申请状态已变更，不是待审核状态");
         }
 
-        // === 权限判断 ===
-        if ("JOIN_ORG".equals(app.getApplicationType())) {
-            OrganizationInfo organization = organizationInfoRepository.findById(app.getTargetId())
-                    .orElseThrow(() -> new IllegalArgumentException("目标组织不存在"));
+        // === 权限校验 ===
+        checkAuditPermission(operator, app);
 
-            if (organization.getLeader() == null || organization.getLeader().getId() == null
-                    || !organization.getLeader().getId().equals(operator.getId())) {
-                throw new SecurityException("您不是目标组织的负责人，无权审核此申请");
-            }
-        } else {
-            if (!"ADMIN".equals(operator.getRole()) && !"SUPER_ADMIN".equals(operator.getRole())) {
-                throw new SecurityException("权限不足，只有管理员可以操作");
-            }
-        }
-
-        // 通用设置
+        // === 状态更新 ===
         app.setStatus(cmd.getNewStatus());
         app.setApproveTime(LocalDateTime.now());
         app.setApprover(operator);
 
+        // 更新 JSON 中的审核意见
         String oldExtraData = app.getExtraData();
         String newExtraData = jsonHelper.addReasonToJson(
                 oldExtraData,
@@ -83,7 +58,7 @@ public class ApplicationTxService {
         );
         app.setExtraData(newExtraData);
 
-        // 通过才执行业务
+        // === 业务回调 (仅通过时执行) ===
         if (cmd.getNewStatus() == 2) {
             handleApplicationPassBusiness(app, oldExtraData);
         }
@@ -93,26 +68,61 @@ public class ApplicationTxService {
     }
 
     /**
+     * 权限校验逻辑抽取
+     */
+    private void checkAuditPermission(UserInfo operator, Application app) {
+        // 社团加入申请：由社长审核
+        if ("JOIN_ORG".equals(app.getApplicationType())) {
+            OrganizationInfo organization = organizationInfoRepository.findById(app.getTargetId())
+                    .orElseThrow(() -> new IllegalArgumentException("目标组织不存在"));
+
+            if (organization.getLeader() == null || !organization.getLeader().getId().equals(operator.getId())) {
+                throw new SecurityException("您不是目标组织的负责人，无权审核此申请");
+            }
+        }
+        // 其它申请 (创建社团、解散社团、演出申请)：由管理员审核
+        else {
+            if (!"ADMIN".equals(operator.getRole()) && !"SUPER_ADMIN".equals(operator.getRole())) {
+                throw new SecurityException("权限不足，只有管理员可以操作");
+            }
+        }
+    }
+
+    /**
      * 审核通过后的具体业务逻辑
-     * 注意：这里不要吞异常！让异常抛出去 -> 当前 REQUIRES_NEW 回滚即可
      */
     private void handleApplicationPassBusiness(Application app, String oldExtraData) {
-
         String type = app.getApplicationType();
 
-        if ("CREATE_ORG".equals(type)) {
-            String orgName;
-            String orgDescription;
-            String avatarUrl;
-
-            try {
-                JsonNode node = new ObjectMapper().readTree(oldExtraData);
-                orgName = node.path("orgName").asText();
-                orgDescription = node.path("orgDescription").asText();
-                avatarUrl = node.path("avatarUrl").asText();
-            } catch (Exception e) {
-                throw new IllegalArgumentException("extraData 解析失败", e);
+        switch (type) {
+            case "CREATE_ORG" -> handleCreateOrg(app, oldExtraData);
+            case "JOIN_ORG" -> handleJoinOrg(app);
+            case "DISBAND_ORG" -> handleDisbandOrg(app);
+            case "PERFORMANCE_APPLY" -> handlePerformanceApply(app);
+            default -> {
+                // 未处理类型：默认不做额外业务
             }
+        }
+    }
+
+    // === 具体业务逻辑拆分 ===
+
+    private void handlePerformanceApply(Application app) {
+        // 演出审核通过 -> 将演出状态改为 1 (已发布/上架)
+        Performance performance = performanceRepository.findById(app.getTargetId())
+                .orElseThrow(() -> new IllegalArgumentException("关联的演出不存在"));
+
+        // 1 = 已发布/上架 (需确保 Performance 实体有 publishStatus 字段)
+        performance.setPublishStatus(1);
+        performanceRepository.saveAndFlush(performance);
+    }
+
+    private void handleCreateOrg(Application app, String extraData) {
+        try {
+            JsonNode node = new ObjectMapper().readTree(extraData);
+            String orgName = node.path("orgName").asText();
+            String orgDescription = node.path("orgDescription").asText();
+            String avatarUrl = node.path("avatarUrl").asText();
 
             OrganizationInfo organization = new OrganizationInfo();
             organization.setName(orgName);
@@ -131,35 +141,31 @@ public class ApplicationTxService {
 
             organizationMemberRepository.saveAndFlush(member);
 
+            // 回写 targetId
             app.setTargetId(savedOrg.getId());
-            return;
+        } catch (Exception e) {
+            throw new IllegalArgumentException("创建组织失败: " + e.getMessage(), e);
         }
+    }
 
-        if ("JOIN_ORG".equals(type)) {
-            OrganizationInfo organization = organizationInfoRepository.findById(app.getTargetId())
-                    .orElseThrow(() -> new IllegalArgumentException("目标组织不存在"));
+    private void handleJoinOrg(Application app) {
+        OrganizationInfo organization = organizationInfoRepository.findById(app.getTargetId())
+                .orElseThrow(() -> new IllegalArgumentException("目标组织不存在"));
 
-            OrganizationMember member = new OrganizationMember();
-            member.setOrganization(organization);
-            member.setUser(app.getApplicant());
-            member.setMemberRole("MEMBER");
-            member.setStatus(1);
+        OrganizationMember member = new OrganizationMember();
+        member.setOrganization(organization);
+        member.setUser(app.getApplicant());
+        member.setMemberRole("MEMBER");
+        member.setStatus(1);
 
-            organizationMemberRepository.saveAndFlush(member);
-            return;
-        }
+        organizationMemberRepository.saveAndFlush(member);
+    }
 
-        if ("DISBAND_ORG".equals(type)) {
-            OrganizationInfo organizationInfo = organizationInfoRepository.findById(app.getTargetId())
-                    .orElseThrow(() -> new IllegalArgumentException("目标组织不存在"));
+    private void handleDisbandOrg(Application app) {
+        OrganizationInfo organizationInfo = organizationInfoRepository.findById(app.getTargetId())
+                .orElseThrow(() -> new IllegalArgumentException("目标组织不存在"));
 
-            organizationInfo.setStatus(3);
-
-            // 强制 flush：如果 status/约束/触发器/乐观锁等有问题，会在这里抛出
-            organizationInfoRepository.saveAndFlush(organizationInfo);
-            return;
-        }
-
-        // 未处理类型：默认不做额外业务
+        organizationInfo.setStatus(3);
+        organizationInfoRepository.saveAndFlush(organizationInfo);
     }
 }

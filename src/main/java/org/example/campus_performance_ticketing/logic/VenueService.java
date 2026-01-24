@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid; // 如果是 Spring Boot 2.x 可能是 javax.validation.Valid
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import lombok.RequiredArgsConstructor;
 import org.example.campus_performance_ticketing.dao.UserRepository;
 import org.example.campus_performance_ticketing.dao.VenueRepository;
 import org.example.campus_performance_ticketing.logic.dto.ApiResponse;
@@ -30,6 +31,8 @@ import java.util.stream.Collectors;
 
 @Service
 @Validated // 关键：开启此类的方法参数校验
+@RequiredArgsConstructor
+
 public class VenueService {
 
     private final VenueRepository venueRepository;
@@ -45,12 +48,6 @@ public class VenueService {
     @Value("${file.base.url}")
     private String fileBaseUrl;
 
-
-    public VenueService(VenueRepository venueRepository,
-                        UserRepository userRepository) {
-        this.venueRepository = venueRepository;
-        this.userRepository = userRepository;
-    }
 
     /**
      * 创建场地

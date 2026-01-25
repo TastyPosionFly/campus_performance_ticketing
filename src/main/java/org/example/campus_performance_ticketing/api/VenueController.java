@@ -3,13 +3,12 @@ package org.example.campus_performance_ticketing.api;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
+import org.example.campus_performance_ticketing.logic.VenueBlockDayService;
 import org.example.campus_performance_ticketing.logic.VenueOpeningHoursService;
 import org.example.campus_performance_ticketing.logic.VenueService;
 import org.example.campus_performance_ticketing.logic.dto.ApiResponse;
-import org.example.campus_performance_ticketing.logic.dto.venue.CreateVenueDto;
-import org.example.campus_performance_ticketing.logic.dto.venue.OpeningHoursDto;
-import org.example.campus_performance_ticketing.logic.dto.venue.UpdateVenueDto;
-import org.example.campus_performance_ticketing.logic.dto.venue.VenueDetailDto;
+import org.example.campus_performance_ticketing.logic.dto.venue.*;
+import org.example.campus_performance_ticketing.model.VenueBlockedDay;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 
@@ -21,9 +20,12 @@ public class VenueController {
 
     private final VenueService venueService;
     private final VenueOpeningHoursService venueOpeningHoursService;
+    private final VenueBlockDayService venueBlockDayService;
 
     public VenueController(VenueService venueService,
-                           VenueOpeningHoursService venueOpeningHoursService) {
+                           VenueOpeningHoursService venueOpeningHoursService,
+                           VenueBlockDayService venueBlockDayService) {
+        this.venueBlockDayService = venueBlockDayService;
         this.venueOpeningHoursService = venueOpeningHoursService;
         this.venueService = venueService;
     }
@@ -102,16 +104,6 @@ public class VenueController {
     }
 
 
-    // 场地开放时间相关接口
-    /**
-     * 获取开放时间
-     * GET /api/venues/{venueId}/hours
-     */
-    @GetMapping("/{venueId}/hours")
-    public ApiResponse<List<OpeningHoursDto>> getOpeningHours(@PathVariable @NotNull Long venueId) {
-        return venueOpeningHoursService.getOpeningHours(venueId);
-    }
-
     /**
      * 设置开放时间 (批量)
      * POST /api/venues/{venueId}/hours
@@ -124,6 +116,34 @@ public class VenueController {
     ) {
         String openId = (String) request.getAttribute("openid");
         return venueOpeningHoursService.setOpeningHours(venueId, dtoList, openId);
+    }
+
+    /**
+     * 屏蔽场馆并取消当天演出
+     *
+     * @param request  HTTP 请求对象
+     * @param requestDto 屏蔽场馆的请求数据
+     * @return 屏蔽结果响应
+     */
+    @PostMapping(value = "/block", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ApiResponse<BlockVenueResponseDto> blockVenueAndCancelPerformances(
+            HttpServletRequest request,
+            @Valid @RequestBody BlockVenueRequestDto requestDto) {
+        String openId = (String) request.getAttribute("openid");
+        // 调用服务层逻辑处理并返回结果
+        return venueBlockDayService.blockVenueAndCancelPerformances(openId, requestDto);
+    }
+
+    /**
+     * 获取场馆的开放时间和屏蔽日期
+     *
+     * @param venueId 场馆 ID
+     * @return 每天的开放时间 + 屏蔽日期
+     */
+    @GetMapping("/{venueId}/hours-and-blocks")
+    public ApiResponse<OpeningAndBlockedHoursDto> getVenueHoursAndBlockedDates(
+            @PathVariable @NotNull Long venueId) {
+        return venueOpeningHoursService.getVenueHoursAndBlockedDates(venueId);
     }
 
 }

@@ -37,4 +37,14 @@ public interface PerformanceSessionRepository extends JpaRepository<PerformanceS
     List<PerformanceSession> findConflicts(@Param("venueId") Long venueId,
                                            @Param("startTime") LocalDateTime startTime,
                                            @Param("endTime") LocalDateTime endTime);
+
+    /**
+     * 查找指定场馆在某时间区间内的所有演出场次
+     *
+     * @param venueId   场馆 ID
+     * @param startTime 时间段的起点
+     * @param endTime   时间段的终点
+     * @return 演出场次列表
+     */
+    List<PerformanceSession> findByVenueIdAndStartTimeBetween(Long venueId, LocalDateTime startTime, LocalDateTime endTime);
 }

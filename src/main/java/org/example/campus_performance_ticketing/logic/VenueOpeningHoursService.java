@@ -6,18 +6,22 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import org.example.campus_performance_ticketing.dao.UserRepository;
+import org.example.campus_performance_ticketing.dao.VenueBlockedDayRepository;
 import org.example.campus_performance_ticketing.dao.VenueOpeningHoursRepository;
 import org.example.campus_performance_ticketing.dao.VenueRepository;
 import org.example.campus_performance_ticketing.logic.dto.ApiResponse;
+import org.example.campus_performance_ticketing.logic.dto.venue.OpeningAndBlockedHoursDto;
 import org.example.campus_performance_ticketing.logic.dto.venue.OpeningHoursDto;
 import org.example.campus_performance_ticketing.model.UserInfo;
 import org.example.campus_performance_ticketing.model.Venue;
+import org.example.campus_performance_ticketing.model.VenueBlockedDay;
 import org.example.campus_performance_ticketing.model.VenueOpeningHours;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.annotation.Validated;
 
+import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.Comparator;
 import java.util.List;
@@ -32,30 +36,9 @@ public class VenueOpeningHoursService {
     private final VenueRepository venueRepository;
     private final VenueOpeningHoursRepository openingHoursRepository;
     private final UserRepository userRepository;
+    private final VenueBlockedDayRepository blockedDayRepository;
 
     private static final Logger logger = Logger.getLogger(VenueOpeningHoursService.class.getName());
-
-    /**
-     * 获取指定场地的开放时间列表
-     *
-     * @param venueId 场地 ID
-     * @return 按星期排序的列表
-     */
-    public ApiResponse<List<OpeningHoursDto>> getOpeningHours(@NotNull Long venueId) {
-        if (!venueRepository.existsById(venueId)) {
-            return ApiResponse.fail("场地不存在");
-        }
-
-        List<VenueOpeningHours> list = openingHoursRepository.findByVenueId(venueId);
-
-        // 转换为 DTO 并按星期 1-7 排序
-        List<OpeningHoursDto> dtos = list.stream()
-                .sorted(Comparator.comparingInt(VenueOpeningHours::getDayOfWeek))
-                .map(this::convertToDto)
-                .collect(Collectors.toList());
-
-        return ApiResponse.success(dtos);
-    }
 
     /**
      * 设置场地的开放时间 (批量设置)
@@ -125,6 +108,27 @@ public class VenueOpeningHoursService {
         return ApiResponse.success(null);
     }
 
+
+    /**
+     * 查询指定场馆的开放时间和屏蔽时间
+     *
+     * @param venueId 场馆 ID
+     * @return 开放时间和屏蔽时间
+     */
+    public ApiResponse<OpeningAndBlockedHoursDto> getVenueHoursAndBlockedDates(@NotNull Long venueId) {
+        // 1. 查询开放时间
+        List<OpeningHoursDto> openingHours = getFormattedOpeningHours(venueId);
+
+        // 2. 查询屏蔽时间
+        List<LocalDate> blockedDates = blockedDayRepository.findByVenueId(venueId).stream()
+                .map(VenueBlockedDay::getBlockedDate)
+                .collect(Collectors.toList());
+
+        // 3. 封装结果
+        OpeningAndBlockedHoursDto result = new OpeningAndBlockedHoursDto(openingHours, blockedDates);
+        return ApiResponse.success(result);
+    }
+
     /**
      * DTO 转换辅助方法
      */
@@ -132,6 +136,23 @@ public class VenueOpeningHoursService {
         OpeningHoursDto dto = new OpeningHoursDto();
         BeanUtils.copyProperties(entity, dto);
         return dto;
+    }
+
+    /**
+     * 私有方法：查询并格式化开放时间
+     */
+    private List<OpeningHoursDto> getFormattedOpeningHours(@NotNull Long venueId) {
+        List<VenueOpeningHours> hoursList = openingHoursRepository.findByVenueId(venueId);
+
+        return hoursList.stream()
+                .sorted(Comparator.comparingInt(VenueOpeningHours::getDayOfWeek)) // 按星期几排序
+                .map(hours -> new OpeningHoursDto(
+                        hours.getDayOfWeek(),
+                        hours.getIsClosed(),// 是否闭馆
+                        hours.getCloseTime(), // 闭馆时间
+                        hours.getOpenTime() // 开馆时间
+                ))
+                .collect(Collectors.toList());
     }
 
 }

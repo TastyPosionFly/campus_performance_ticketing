@@ -20,6 +20,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -40,6 +41,7 @@ public class PerformanceService {
     private final ApplicationRepository applicationRepository;
     private final UserRepository userRepository;
     private final OrganizationInfoRepository organizationInfoRepository;
+    private final VenueBlockedDayRepository venueBlockedDayRepository;
 
     private static final Logger logger = Logger.getLogger(PerformanceService.class.getName());
 
@@ -70,6 +72,9 @@ public class PerformanceService {
             }
 
             validateOrganizerAuthority(applicant, cmd.getOrganizerType(), cmd.getOrganizerId());
+
+            // 检查演出场次是否冲突（时间范围内的闭馆日期和其他问题）
+            validateSessionsAndBlockDays(cmd.getSessions());
 
             // === 核心修改：处理上传的文件 ===
             processUploadFiles(cmd, poster, staffPhotos);
@@ -116,7 +121,6 @@ public class PerformanceService {
         List<PerformanceSession> sessions = new ArrayList<>();
         if (cmd.getSessions() != null) {
             for (SessionCmd sessionCmd : cmd.getSessions()) {
-                checkVenueConflict(sessionCmd.getVenueId(), sessionCmd.getStartTime(), sessionCmd.getEndTime(), null);
                 Venue venue = venueRepository.findById(sessionCmd.getVenueId()).orElseThrow();
                 PerformanceSession session = new PerformanceSession();
                 session.setPerformance(performance);
@@ -177,6 +181,58 @@ public class PerformanceService {
         }
     }
 
+
+    /**
+     * 验证场次是否冲突，包括与场馆闭馆日期冲突.
+     *
+     * @param sessions 场次列表
+     */
+    private void validateSessionsAndBlockDays(List<SessionCmd> sessions) {
+        if (sessions == null || sessions.isEmpty()) {
+            throw new IllegalArgumentException("演出场次不得为空");
+        }
+
+        for (SessionCmd session : sessions) {
+            // 检查场馆是否存在
+            Venue venue = venueRepository.findById(session.getVenueId())
+                    .orElseThrow(() -> new IllegalArgumentException("指定的场馆不存在"));
+
+            // 验证场馆是否在演出时间段内被屏蔽
+            LocalDateTime startTime = session.getStartTime();
+            LocalDateTime endTime = session.getEndTime();
+            validateIfBlocked(venue, startTime, endTime);
+
+            // 检查是否与其他场次冲突
+            checkVenueConflict(session.getVenueId(), session.getStartTime(), session.getEndTime(), null);
+        }
+    }
+
+    /**
+     * 验证演出是否与场馆的屏蔽日期冲突
+     *
+     * @param venue 场馆
+     * @param startTime 场次开始时间
+     * @param endTime 场次结束时间
+     */
+    private void validateIfBlocked(Venue venue, LocalDateTime startTime, LocalDateTime endTime) {
+        // 获取场次时间段内是否存在与屏蔽日期重叠
+        List<VenueBlockedDay> blockedDays = venueBlockedDayRepository.findByVenueIdAndBlockedDateBetween(
+                venue.getId(),
+                startTime.toLocalDate(),
+                endTime.toLocalDate()
+        );
+
+        if (!blockedDays.isEmpty()) {
+            for (VenueBlockedDay blockedDay : blockedDays) {
+                LocalDate blockedDate = blockedDay.getBlockedDate();
+                if (!endTime.toLocalDate().isBefore(blockedDate) && !startTime.toLocalDate().isAfter(blockedDate)) {
+                    throw new IllegalArgumentException(
+                            "场馆 [" + venue.getName() + "] 在 " + blockedDate + " 已闭馆，无法申请演出"
+                    );
+                }
+            }
+        }
+    }
 
     private void checkVenueConflict(Long venueId, LocalDateTime start, LocalDateTime end, Long excludeSessionId) {
         if (!start.isBefore(end)) throw new IllegalArgumentException("时间设置错误");

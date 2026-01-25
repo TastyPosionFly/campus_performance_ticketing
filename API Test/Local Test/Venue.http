@@ -16,7 +16,7 @@ POST {{baseURL}}/auth/login
 Content-Type: application/json
 
 {
-  "openid": "openid_003"
+  "openid": "openid_004"
 }
 
 > {% client.global.set("token", response.body.token); %}
@@ -263,10 +263,12 @@ GET {{baseURL}}/venues/5
 Authorization: {{token}}
 Accept: application/json
 
-### 15 获取场地开放时间 (Pass)
-GET {{baseURL}}/venues/3/hours
+
+### 15. 获取场馆开放时间和屏蔽日期 (新接口) (Pass)
+GET {{baseURL}}/venues/1/hours-and-blocks
 Authorization: {{token}}
 Accept: application/json
+
 
 ### 16 设置场地开放时间 (周一至周五开放，周六日休息) (Pass)
 POST {{baseURL}}/venues/3/hours
@@ -297,3 +299,52 @@ Content-Type: application/json
     "isClosed": true
   }
 ]
+
+### 17. 新增场馆屏蔽日期 (Pass)
+POST {{baseURL}}/venues/block
+Authorization: {{token}}
+Content-Type: application/json
+
+{
+  "venueId": 3,
+  "blockedDate": "2026-02-18",
+  "reason": "临时闭馆，场馆维护"
+}
+
+
+
+
+### 18. 再次尝试添加已存在的屏蔽日期 (Pass)
+POST {{baseURL}}/venues/block
+Authorization: {{token}}
+Content-Type: application/json
+
+{
+  "venueId": 1,
+  "blockedDate": "2026-12-25",
+  "reason": "清理场地"
+}
+
+
+
+### 19. 在过去时间屏蔽场馆日期 (Pass)
+POST {{baseURL}}/venues/block
+Authorization: {{token}}
+Content-Type: application/json
+
+{
+  "venueId": 3,
+  "blockedDate": "2025-01-01",
+  "reason": "历史屏蔽测试"
+}
+
+### 20. 屏蔽一个不存在的场馆 (Pass)
+POST {{baseURL}}/venues/block
+Authorization: {{token}}
+Content-Type: application/json
+
+{
+  "venueId": 999,
+  "blockedDate": "2026-03-05",
+  "reason": "测试屏蔽不存在的场馆"
+}

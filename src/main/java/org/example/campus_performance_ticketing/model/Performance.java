@@ -51,7 +51,7 @@ public class Performance {
     private Long organizerId;
 
     /**
-     * 发布状态: 0-待审批, 1-已发布, 2-已下架, 3-已结束
+     * 发布状态: 0-待审批, 1-已发布, 2-已下架, 3-已结束, 4-审批拒绝, 5-草稿, 6-被征用/需重排
      */
     @Column(name = "publish_status")
     private Integer publishStatus;

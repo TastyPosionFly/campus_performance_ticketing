@@ -1,0 +1,168 @@
+### @env local
+@venueId = 1
+@orgId = 2
+
+### ========================================================================
+### 1. 模拟登录 - 普通用户 (获取 Token)
+### ========================================================================
+POST {{baseURL}}/auth/login
+Content-Type: application/json
+
+{
+  "openid": "openid_002"
+}
+
+> {% client.global.set("token", response.body.token); %}
+
+
+### ========================================================================
+### 2. 模拟登录 - 管理员 (获取 Token)
+### ========================================================================
+POST {{baseURL}}/auth/login
+Content-Type: application/json
+
+{
+  "openid": "openid_001"
+}
+
+> {% client.global.set("token", response.body.token); %}
+
+
+### ========================================================================
+### 3. 场景A：个人提交演出申请 (格式修正版) (Pass)
+### ========================================================================
+POST {{baseURL}}/performance/apply
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="data"
+Content-Type: application/json
+
+{
+  "title": "个人吉他路演11",
+  "description": "个人练习生练习时长两年半的成果展示",
+  "categoryId": 1,
+  "organizerType": "USER",
+  "organizerId": 1,
+  "applyReason": "个人才艺展示",
+  "sessions": [
+    {
+      "venueId": {{venueId}},
+      "startTime": "2026-12-20T19:00:00",
+      "endTime": "2026-12-20T21:00:00",
+      "ticketTotal": 50
+    }
+  ],
+  "staffList": [
+    {
+      "staffName": "练习生A",
+      "staffType": "主唱",
+      "staffAvatar": "avatar_a.jpg",
+      "introduction": "热爱音乐",
+      "sortOrder": 1
+    }
+  ]
+}
+--WebAppBoundary
+Content-Disposition: form-data; name="poster"; filename="my_poster.jpg"
+Content-Type: image/jpeg
+
+< ./avatar.jpg
+--WebAppBoundary
+Content-Disposition: form-data; name="staffPhotos"; filename="avatar_a.jpg"
+Content-Type: image/jpeg
+
+< ./avatar.jpg
+--WebAppBoundary--
+
+
+### ========================================================================
+### 4. 场景B：社团/组织提交演出申请 (格式修正版) (Pass)
+### ========================================================================
+POST {{baseURL}}/performance/apply
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="data"
+Content-Type: application/json
+
+{
+  "title": "话剧社年度大戏《雷雨》",
+  "description": "话剧社全员出演",
+  "categoryId": 1,
+  "organizerType": "ORGANIZATION",
+  "organizerId": {{orgId}},
+  "applyReason": "年度汇演",
+  "sessions": [
+    {
+      "venueId": {{venueId}},
+      "startTime": "2026-12-25T19:00:00",
+      "endTime": "2026-12-25T22:00:00",
+      "ticketTotal": 500
+    }
+  ],
+  "staffList": [
+    {
+      "staffName": "导演王",
+      "staffType": "导演",
+      "staffAvatar": "director.jpg",
+      "introduction": "总导演",
+      "sortOrder": 1
+    },
+    {
+      "staffName": "演员李",
+      "staffType": "主演",
+      "staffAvatar": "actor.jpg",
+      "introduction": "男一号",
+      "sortOrder": 2
+    }
+  ]
+}
+--WebAppBoundary
+Content-Disposition: form-data; name="poster"; filename="drama_poster.jpg"
+Content-Type: image/jpeg
+
+< ./avatar.jpg
+--WebAppBoundary
+Content-Disposition: form-data; name="staffPhotos"; filename="director.jpg"
+Content-Type: image/jpeg
+
+< ./avatar.jpg
+--WebAppBoundary
+Content-Disposition: form-data; name="staffPhotos"; filename="actor.jpg"
+Content-Type: image/jpeg
+
+< ./avatar.jpg
+--WebAppBoundary--
+
+
+### ========================================================================
+### 5. 场景C：管理员强制征用场地 (格式修正版) (Pass)
+### ========================================================================
+POST {{baseURL}}/admin/performance/preempt
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="data"
+Content-Type: application/json
+
+{
+  "title": "【校级】新年晚会彩排",
+  "description": "最高优先级活动，征用场地",
+  "categoryId": 2,
+  "organizerType": "ORGANIZATION",
+  "organizerId": 1,
+  "sessions": [
+    {
+      "venueId": {{venueId}},
+      "startTime": "2026-12-25T18:00:00",
+      "endTime": "2026-12-25T22:00:00",
+      "ticketTotal": 0
+    }
+  ],
+  "staffList": []
+}
+--WebAppBoundary--

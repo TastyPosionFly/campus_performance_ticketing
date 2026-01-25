@@ -1,0 +1,59 @@
+### @env local
+
+### ========================================================================
+### 1. 模拟登录 - 普通用户 (获取 Token)
+### ========================================================================
+POST {{baseURL}}/auth/login
+Content-Type: application/json
+
+{
+  "openid": "openid_004"
+}
+
+> {% client.global.set("token", response.body.token); %}
+
+
+### ========================================================================
+### 2. 模拟登录 - 管理员 (获取 Token)
+### ========================================================================
+POST {{baseURL}}/auth/login
+Content-Type: application/json
+
+{
+  "openid": "openid_001"
+}
+
+> {% client.global.set("token", response.body.token); %}
+
+### 查询本人提交的申请记录 (Pass)
+GET {{baseURL}}/application/my-applications
+Authorization: Bearer {{token}}
+
+### 查询本人提交的申请记录（指定类型） (Pass)
+GET {{baseURL}}/application/my-applications?applicationType=PERFORMANCE_APPLY
+Authorization: Bearer {{token}}
+
+### 查询所有申请（管理用） (Pass)
+GET {{baseURL}}/application/list
+Authorization: Bearer {{token}}
+
+### 查询所有申请（按类型/状态过滤）(Pass)
+GET {{baseURL}}/application/list?applicationType=PERFORMANCE_APPLY&status=1
+Authorization: Bearer {{token}}
+
+### 批量审核申请 (Pass)
+POST {{baseURL}}/application/batch-review
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+[
+  {
+    "applicationId": 5,
+    "newStatus": 2,
+    "reason": "同意理由"
+  }
+]
+
+### 撤销个人申请 (Pass)
+POST {{baseURL}}/application/revoke?applicationId=6
+Authorization: Bearer {{token}}

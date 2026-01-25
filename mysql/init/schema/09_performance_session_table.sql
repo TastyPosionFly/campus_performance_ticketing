@@ -1,7 +1,7 @@
 CREATE TABLE `performance_session` (
     `id` BIGINT NOT NULL AUTO_INCREMENT,
     `performance_id` BIGINT NOT NULL COMMENT '关联演出ID',
-    `venue_id` BIGINT NOT NULL COMMENT '场地ID',
+    `venue_id` BIGINT(20) UNSIGNED NOT NULL COMMENT '场地ID',
     `start_time` DATETIME NOT NULL COMMENT '开始时间',
     `end_time` DATETIME NOT NULL COMMENT '结束时间',
     `ticket_total` INT NOT NULL DEFAULT 0 COMMENT '总票数',

@@ -1,6 +1,9 @@
 package org.example.campus_performance_ticketing.logic;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.campus_performance_ticketing.dao.*;
@@ -9,24 +12,26 @@ import org.example.campus_performance_ticketing.logic.dto.performance.CreatePerf
 import org.example.campus_performance_ticketing.logic.dto.performance.SessionCmd;
 import org.example.campus_performance_ticketing.logic.dto.performance.StaffCmd;
 import org.example.campus_performance_ticketing.model.*;
-import org.example.campus_performance_ticketing.logic.NotificationService;
 import org.example.campus_performance_ticketing.util.FileUtil;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@Valid
 public class PerformanceService {
 
     private final PerformanceRepository performanceRepository;
@@ -36,121 +41,68 @@ public class PerformanceService {
     private final UserRepository userRepository;
     private final OrganizationInfoRepository organizationInfoRepository;
 
+    private static final Logger logger = Logger.getLogger(PerformanceService.class.getName());
 
-    // === 注入文件目录配置 ===
+
     @Value("${performance.post.temp-dir}")
     private String posterTempDir;
 
     @Value("${staff.photo.temp-dir}")
     private String staffTempDir;
 
-    @Value("${performance.post.upload-dir}")
-    private String posterRealDir;
-
-    @Value("${staff.photo.upload-dir}")
-    private String staffRealDir;
-
-
-    // ==========================================
-    // A. 文件上传 (Controller 调用此层)
-    // ==========================================
-    public String uploadTempImage(MultipartFile file, String type) {
+    /**
+     * 提交演出申请
+     * @param userOpenId
+     * @param cmd
+     * @return
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public ApiResponse<Void> submitPerformanceApplication(@NotBlank String userOpenId,
+                                                          @Valid CreatePerformanceCmd cmd,
+                                                          MultipartFile poster,
+                                                          List<MultipartFile> staffPhotos) {
         try {
-            if ("POSTER".equalsIgnoreCase(type)) {
-                return FileUtil.saveImage(file, posterTempDir);
-            } else if ("STAFF".equalsIgnoreCase(type)) {
-                return FileUtil.saveImage(file, staffTempDir);
-            } else {
-                throw new IllegalArgumentException("未知的文件类型");
+            UserInfo applicant = userRepository.findByOpenid(userOpenId)
+                    .orElseThrow(() -> new IllegalArgumentException("用户不存在"));
+
+            if ("USER".equals(cmd.getOrganizerType())) {
+                cmd.setOrganizerId(applicant.getId());
             }
-        } catch (IOException e) {
-            log.error("上传临时文件失败", e);
-            throw new RuntimeException("文件上传失败");
+
+            validateOrganizerAuthority(applicant, cmd.getOrganizerType(), cmd.getOrganizerId());
+
+            // === 核心修改：处理上传的文件 ===
+            processUploadFiles(cmd, poster, staffPhotos);
+
+            // 保存数据 (此时存的是 temp 路径)
+            Performance performance = savePerformanceData(cmd, 0);
+
+            createApplicationRecord(applicant, performance, cmd);
+
+            ApiResponse<Void> response = ApiResponse.success(null);
+            response.setMessage("演出申请提交成功，等待管理员审批");
+            return response;
+        } catch (Exception e) {
+            logger.severe("演出申请提交失败: " + e.getMessage());
+            return ApiResponse.fail("演出申请提交失败: " + e.getMessage());
         }
     }
 
-
-    // ==========================================
-    // B. 提交申请 (逻辑保持不变，存的是临时路径)
-    // ==========================================
+    /**
+     * 【供 AdminService 调用】直接创建演出并返回实体
+     */
     @Transactional(rollbackFor = Exception.class)
-    public ApiResponse<Void> submitPerformanceApplication(String userOpenId, CreatePerformanceCmd cmd) {
-        UserInfo applicant = userRepository.findByOpenid(userOpenId)
-                .orElseThrow(() -> new IllegalArgumentException("用户不存在"));
-
-        validateOrganizerAuthority(applicant, cmd.getOrganizerType(), cmd.getOrganizerId());
-
-        // 存入数据库的是临时路径 (e.g., ./data/temp/poster/xxx.jpg)
-        Performance performance = savePerformanceData(cmd, 0);
-
-        createApplicationRecord(applicant, performance, cmd);
-
-        log.info("申请提交成功，ID: {}", performance.getId());
-
-        ApiResponse<Void> response = ApiResponse.success(null);
-        response.setMessage("申请提交成功，等待审核");
-
-        return response;
+    public Performance createPerformanceEntity(CreatePerformanceCmd cmd) {
+        // 复用已有的保存逻辑，直接状态设为 1 (已发布)
+        return savePerformanceData(cmd, 1);
     }
 
-
-    // ==========================================
-    // C. 审批通过后的逻辑 (ApplicationTxService 调用此层)
-    // 核心：移动文件 + 更新路径 + 上架
-    // ==========================================
-    @Transactional(rollbackFor = Exception.class)
-    public void approveAndActivate(Long performanceId) {
-        Performance performance = performanceRepository.findById(performanceId)
-                .orElseThrow(() -> new IllegalArgumentException("演出不存在"));
-
-        // 1. 处理海报：从 temp -> real
-        if (isTempPath(performance.getPosterUrl())) {
-            try {
-                String newPath = FileUtil.moveFile(performance.getPosterUrl(), posterRealDir);
-                performance.setPosterUrl(newPath);
-            } catch (IOException e) {
-                log.error("移动海报文件失败: {}", performance.getPosterUrl(), e);
-                // 即使移动失败，也可以选择继续，或者抛异常回滚。
-                // 这里选择抛异常回滚，保证数据一致性
-                throw new RuntimeException("审批失败：海报文件移动异常");
-            }
-        }
-
-        // 2. 处理演职人员照片
-        List<PerformanceStaff> staffList = performance.getStaffList();
-        if (staffList != null) {
-            for (PerformanceStaff staff : staffList) {
-                if (isTempPath(staff.getStaffAvatar())) {
-                    try {
-                        String newStaffPath = FileUtil.moveFile(staff.getStaffAvatar(), staffRealDir);
-                        staff.setStaffAvatar(newStaffPath);
-                        // 注意：因为配置了 CascadeType.ALL，performance保存时会自动更新staff
-                    } catch (IOException e) {
-                        log.error("移动人员照片失败: {}", staff.getStaffAvatar(), e);
-                        // 这里可以选择忽略单张照片的失败，或者抛异常
-                    }
-                }
-            }
-        }
-
-        // 3. 更新状态为已上架
-        performance.setPublishStatus(1);
-
-        // 4. 保存更新后的路径和状态
-        performanceRepository.saveAndFlush(performance);
-
-        // 5. 发通知
-        // notificationService.sendNotification(performance.getOrganizerId(), ...);
-    }
-
-    // 判断是否是临时文件
-    private boolean isTempPath(String path) {
-        return path != null && path.contains("/temp/");
-    }
-
-    // ... (保留之前的 savePerformanceData, checkVenueConflict, validateOrganizerAuthority 等辅助方法) ...
-    // 为节省篇幅，此处省略私有辅助方法，请确保它们存在于类中
-
+    /**
+     * 保存演出数据
+     * @param cmd
+     * @param status
+     * @return
+     */
     private Performance savePerformanceData(CreatePerformanceCmd cmd, Integer status) {
         Performance performance = new Performance();
         performance.setTitle(cmd.getTitle());
@@ -165,9 +117,7 @@ public class PerformanceService {
         if (cmd.getSessions() != null) {
             for (SessionCmd sessionCmd : cmd.getSessions()) {
                 checkVenueConflict(sessionCmd.getVenueId(), sessionCmd.getStartTime(), sessionCmd.getEndTime(), null);
-                Venue venue = venueRepository.findById(sessionCmd.getVenueId())
-                        .orElseThrow(() -> new IllegalArgumentException("场地ID不存在: " + sessionCmd.getVenueId()));
-
+                Venue venue = venueRepository.findById(sessionCmd.getVenueId()).orElseThrow();
                 PerformanceSession session = new PerformanceSession();
                 session.setPerformance(performance);
                 session.setVenue(venue);
@@ -197,7 +147,6 @@ public class PerformanceService {
             }
         }
         performance.setStaffList(staffList);
-
         return performanceRepository.save(performance);
     }
 
@@ -207,25 +156,13 @@ public class PerformanceService {
         application.setApplicationType("PERFORMANCE_APPLY");
         application.setTargetId(performance.getId());
         application.setStatus(1);
-
         Map<String, Object> extra = new HashMap<>();
         extra.put("reason", cmd.getApplyReason());
         extra.put("performanceTitle", performance.getTitle());
         try {
             application.setExtraData(new ObjectMapper().writeValueAsString(extra));
-        } catch (Exception e) {
-            log.error("JSON序列化失败", e);
-        }
+        } catch (Exception ignored) {}
         applicationRepository.save(application);
-    }
-
-    private void checkVenueConflict(Long venueId, LocalDateTime start, LocalDateTime end, Long excludeSessionId) {
-        if (!start.isBefore(end)) throw new IllegalArgumentException("时间设置错误");
-        List<PerformanceSession> conflicts = sessionRepository.findConflicts(venueId, start, end);
-        for (PerformanceSession conflict : conflicts) {
-            if (excludeSessionId != null && conflict.getId().equals(excludeSessionId)) continue;
-            throw new IllegalStateException("排期冲突: " + conflict.getPerformance().getTitle());
-        }
     }
 
     private void validateOrganizerAuthority(UserInfo user, String organizerType, Long organizerId) {
@@ -239,4 +176,55 @@ public class PerformanceService {
             }
         }
     }
+
+
+    private void checkVenueConflict(Long venueId, LocalDateTime start, LocalDateTime end, Long excludeSessionId) {
+        if (!start.isBefore(end)) throw new IllegalArgumentException("时间设置错误");
+        List<PerformanceSession> conflicts = sessionRepository.findConflicts(venueId, start, end);
+        for (PerformanceSession conflict : conflicts) {
+            if (excludeSessionId != null && conflict.getId().equals(excludeSessionId)) continue;
+            throw new IllegalStateException("排期冲突: " + conflict.getPerformance().getTitle());
+        }
+    }
+
+    /**
+     * 私有方法：集中处理文件上传
+     * 利用 FileUtil.saveImage 将文件保存到临时目录，并回填路径到 cmd
+     */
+    private void processUploadFiles(CreatePerformanceCmd cmd, MultipartFile poster, List<MultipartFile> staffPhotos) {
+        // 1. 处理海报
+        if (poster != null && !poster.isEmpty()) {
+            try {
+                // 直接使用 FileUtil 保存到临时目录
+                String posterPath = FileUtil.saveImage(poster, posterTempDir);
+                cmd.setPosterUrl(posterPath);
+            } catch (IOException e) {
+                logger.severe("海报保存失败: " + e.getMessage());
+                throw new RuntimeException("海报上传失败");
+            }
+        }
+
+        // 2. 处理演职人员照片
+        // 逻辑：前端在 JSON 的 staffAvatar 字段填的是文件名，后端根据文件名去 staffPhotos 列表里找文件
+        if (staffPhotos != null && !staffPhotos.isEmpty() && cmd.getStaffList() != null) {
+            // 转为 Map 方便查找
+            Map<String, MultipartFile> fileMap = staffPhotos.stream()
+                    .collect(Collectors.toMap(MultipartFile::getOriginalFilename, f -> f, (k1, k2) -> k1));
+
+            for (StaffCmd staff : cmd.getStaffList()) {
+                String originalFilename = staff.getStaffAvatar(); // 前端填的文件名
+                if (StringUtils.hasText(originalFilename) && fileMap.containsKey(originalFilename)) {
+                    try {
+                        String path = FileUtil.saveImage(fileMap.get(originalFilename), staffTempDir);
+                        staff.setStaffAvatar(path); // 替换为真实路径
+                    } catch (IOException e) {
+                        logger.severe("人员照片保存失败: " + originalFilename);
+                        throw new RuntimeException("演职人员照片上传失败: " + originalFilename);
+                    }
+                }
+            }
+        }
+    }
+
+
 }

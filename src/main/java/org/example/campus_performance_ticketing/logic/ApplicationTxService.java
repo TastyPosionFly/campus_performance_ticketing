@@ -6,12 +6,17 @@ import lombok.RequiredArgsConstructor;
 import org.example.campus_performance_ticketing.dao.*;
 import org.example.campus_performance_ticketing.logic.dto.application.ApplicationAuditCommand;
 import org.example.campus_performance_ticketing.model.*;
+import org.example.campus_performance_ticketing.util.FileUtil;
 import org.example.campus_performance_ticketing.util.JsonHelper;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.IOException;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.logging.Logger;
 
 @Service
 @RequiredArgsConstructor
@@ -24,6 +29,15 @@ public class ApplicationTxService {
     // 新增：引入演出仓库
     private final PerformanceRepository performanceRepository;
     private final JsonHelper jsonHelper;
+
+    private static final Logger logger = Logger.getLogger(ApplicationTxService.class.getName());
+
+    // === 注入正式目录配置 (用于文件移动) ===
+    @Value("${performance.post.upload-dir}")
+    private String posterRealDir;
+
+    @Value("${staff.photo.upload-dir}")
+    private String staffRealDir;
 
     /**
      * 单条审核：独立事务，失败只回滚这一条，不影响其它条
@@ -60,7 +74,11 @@ public class ApplicationTxService {
 
         // === 业务回调 (仅通过时执行) ===
         if (cmd.getNewStatus() == 2) {
+            // 审核通过
             handleApplicationPassBusiness(app, oldExtraData);
+        } else if (cmd.getNewStatus() == 3) {
+            // 审核拒绝 (3是Application的拒绝状态)
+            handleApplicationRejectBusiness(app);
         }
 
         // 强制 flush：让数据库约束/外键等错误在“这一条事务里”立刻抛出
@@ -98,21 +116,67 @@ public class ApplicationTxService {
             case "CREATE_ORG" -> handleCreateOrg(app, oldExtraData);
             case "JOIN_ORG" -> handleJoinOrg(app);
             case "DISBAND_ORG" -> handleDisbandOrg(app);
-            case "PERFORMANCE_APPLY" -> handlePerformanceApply(app);
+            case "PERFORMANCE_APPLY" -> activatePerformance(app);
             default -> {
                 // 未处理类型：默认不做额外业务
             }
         }
     }
 
+    /**
+     * 审核拒绝后的具体业务逻辑
+     * @param app
+     */
+    private void handleApplicationRejectBusiness(Application app) {
+        // 仅处理演出申请的联动拒绝
+        if ("PERFORMANCE_APPLY".equals(app.getApplicationType())) {
+            Performance performance = performanceRepository.findById(app.getTargetId())
+                    .orElseThrow(() -> new IllegalArgumentException("演出不存在"));
+
+            performance.setPublishStatus(4); // 4-审批拒绝
+
+            performanceRepository.saveAndFlush(performance);
+        }
+    }
+
     // === 具体业务逻辑拆分 ===
 
-    private void handlePerformanceApply(Application app) {
-        // 演出审核通过 -> 将演出状态改为 1 (已发布/上架)
+    /**
+     * 激活演出：移动临时文件 -> 正式目录，并更新状态
+     * 逻辑完全在此处闭环，不依赖 PerformanceService
+     */
+    private void activatePerformance(Application app) {
         Performance performance = performanceRepository.findById(app.getTargetId())
-                .orElseThrow(() -> new IllegalArgumentException("关联的演出不存在"));
+                .orElseThrow(() -> new IllegalArgumentException("演出不存在"));
 
-        // 1 = 已发布/上架 (需确保 Performance 实体有 publishStatus 字段)
+        // 1. 移动海报
+        if (isTempPath(performance.getPosterUrl())) {
+            try {
+                String newPath = FileUtil.moveFile(performance.getPosterUrl(), posterRealDir);
+                performance.setPosterUrl(newPath);
+            } catch (IOException e) {
+                // 抛出运行时异常以触发事务回滚
+                throw new RuntimeException("审批失败：海报移动异常", e);
+            }
+        }
+
+        // 2. 移动演职人员图片
+        List<PerformanceStaff> staffList = performance.getStaffList();
+        if (staffList != null) {
+            for (PerformanceStaff staff : staffList) {
+                if (isTempPath(staff.getStaffAvatar())) {
+                    try {
+                        String newPath = FileUtil.moveFile(staff.getStaffAvatar(), staffRealDir);
+                        staff.setStaffAvatar(newPath);
+                    } catch (IOException e) {
+                        logger.warning("人员照片移动失败: " + staff.getStaffName());
+                        // 策略：人员照片失败不阻断整个流程，或者也可以选择抛异常
+                    }
+                }
+            }
+        }
+
+        // 3. 上架
         performance.setPublishStatus(1);
         performanceRepository.saveAndFlush(performance);
     }
@@ -165,7 +229,11 @@ public class ApplicationTxService {
         OrganizationInfo organizationInfo = organizationInfoRepository.findById(app.getTargetId())
                 .orElseThrow(() -> new IllegalArgumentException("目标组织不存在"));
 
-        organizationInfo.setStatus(3);
+        organizationInfo.setStatus(2); // 2-已解散
         organizationInfoRepository.saveAndFlush(organizationInfo);
+    }
+
+    private boolean isTempPath(String path) {
+        return path != null && path.contains("/temp/");
     }
 }

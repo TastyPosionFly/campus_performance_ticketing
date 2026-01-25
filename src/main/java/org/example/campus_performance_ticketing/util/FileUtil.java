@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.UUID;
 import java.util.logging.Logger;
 
@@ -188,36 +189,43 @@ public class FileUtil {
     }
 
     /**
-     * 将文件从源路径移动到目标目录
-     * @param sourcePath 源文件完整路径 (数据库中存的路径，可能包含 ./)
-     * @param targetDir 目标目录 (配置文件中的目录)
+     * 移动文件（剪切）：将文件从源路径移动到目标目录
+     * 成功移动后，源文件（临时文件）将自动不再存在。
+     *
+     * @param sourcePath 源文件完整路径 (e.g., "data/temp/post/1.jpg")
+     * @param targetDir 目标目录 (e.g., "data/real/post/")
      * @return 移动后的新文件路径
      */
     public static String moveFile(String sourcePath, String targetDir) throws IOException {
-        if (sourcePath == null || sourcePath.isEmpty()) return null;
+        if (sourcePath == null || sourcePath.isBlank()) return null;
 
-        // 1. 处理路径格式
-        String cleanSource = "./" + sourcePath;
-        String cleanTargetDir = normalizeUploadDir(targetDir);
+        // 1. 修正路径逻辑：确保相对路径在开发环境中正确指向
+        String cleanedSourcePath = sourcePath;
+        if (!new File(sourcePath).isAbsolute() && sourcePath.startsWith("data")) {
+            cleanedSourcePath = "./" + sourcePath;
+        }
 
-        File srcFile = new File(cleanSource);
+        File srcFile = new File(cleanedSourcePath);
         if (!srcFile.exists() || !srcFile.isFile()) {
-            // 如果源文件不存在，可能已经是正式路径，或者数据有问题，直接返回原路径
-            logger.warning("移动文件失败，源文件不存在: " + cleanSource);
+            logger.warning("源文件不存在，跳过移动: " + cleanedSourcePath);
             return sourcePath;
         }
 
-        // 2. 准备目标文件
+        // 2. 准备目标
         String fileName = srcFile.getName();
+        String cleanTargetDir = normalizeUploadDir(targetDir);
         Files.createDirectories(Paths.get(cleanTargetDir));
         File destFile = new File(cleanTargetDir, fileName);
 
-        // 3. 移动 (REPLACE_EXISTING 覆盖同名)
-        Files.move(srcFile.toPath(), destFile.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        // 3. 执行移动
+        try {
+            Files.move(srcFile.toPath(), destFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            logger.info("文件移动成功: " + cleanedSourcePath + " -> " + destFile.getPath());
+        } catch (IOException e) {
+            logger.severe("文件移动失败: " + e.getMessage());
+            throw e;
+        }
 
-        logger.info("文件已移动: " + cleanSource + " -> " + cleanTargetDir + fileName);
-
-        // 4. 返回新路径 (保持 ./ 前缀风格以适配前端访问)
         return cleanTargetDir + fileName;
     }
 }

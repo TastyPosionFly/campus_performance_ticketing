@@ -127,7 +127,7 @@ public class OrganizationService {
             // 转换为 PublicOrganizationInfo 列表
             List<PublicOrganizationInfo> orgDtos = new ArrayList<>();
             for (OrganizationInfo org : organizations) {
-                if (org.getStatus() == 2 || org.getStatus() == 3) {
+                if (org.getStatus() == 2) {
                     continue; // 跳过待审核和已解散的组织
                 }
 
@@ -169,7 +169,7 @@ public class OrganizationService {
             OrganizationInfo org = organizationInfoRepository.findById(orgId)
                     .orElseThrow(() -> new IllegalArgumentException("组织不存在"));
 
-            if (org.getStatus() == 2 || org.getStatus() == 3) {
+            if (org.getStatus() == 2) {
                 return ApiResponse.fail("组织不可用");
             }
 
@@ -240,14 +240,14 @@ public class OrganizationService {
     }
 
     /**
-     * 定期物理删除已解散组织（status = 3）
+     * 定期物理删除已解散组织（status = 2）
      * 每天凌晨3点执行
      */
     @Scheduled(cron = "0 0 3 * * ?")
     @Transactional
     public void deleteInactiveOrganizationsAndImagesPeriodically() {
         try {
-            List<OrganizationInfo> disbandedOrgs = organizationInfoRepository.findByStatus(3);
+            List<OrganizationInfo> disbandedOrgs = organizationInfoRepository.findByStatus(2);
             List<Long> orgIds = disbandedOrgs.stream().map(OrganizationInfo::getId).toList();
 
             // 删除图片文件（如有需要）

@@ -46,7 +46,7 @@ public class OrganizationInfo {
 
     /**
      * 组织状态
-     * 1-正常 2-待审批 3-已解散
+     * 1-正常 2-已解散
      */
     @Column(nullable = false)
     private Integer status;

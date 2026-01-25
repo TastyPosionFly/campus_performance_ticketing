@@ -1,5 +1,6 @@
 package org.example.campus_performance_ticketing.logic;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -8,6 +9,7 @@ import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import org.example.campus_performance_ticketing.dao.ApplicationRepository;
 import org.example.campus_performance_ticketing.dao.OrganizationInfoRepository;
+import org.example.campus_performance_ticketing.dao.PerformanceRepository;
 import org.example.campus_performance_ticketing.dao.UserRepository;
 import org.example.campus_performance_ticketing.logic.dto.ApiResponse;
 import org.example.campus_performance_ticketing.logic.dto.application.ApplicationAuditCommand;
@@ -16,6 +18,7 @@ import org.example.campus_performance_ticketing.logic.dto.application.PendingApp
 import org.example.campus_performance_ticketing.logic.dto.user.PublicUserInfo;
 import org.example.campus_performance_ticketing.model.Application;
 import org.example.campus_performance_ticketing.model.OrganizationInfo;
+import org.example.campus_performance_ticketing.model.Performance;
 import org.example.campus_performance_ticketing.model.UserInfo;
 import org.example.campus_performance_ticketing.util.AvatarUrlUtil;
 import org.example.campus_performance_ticketing.util.JsonHelper;
@@ -25,8 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.validation.annotation.Validated;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -39,6 +41,7 @@ public class ApplicationService {
     private final UserRepository userRepository;
     private final OrganizationInfoRepository organizationInfoRepository;
     private final ApplicationTxService applicationTxService;
+    private final PerformanceRepository performanceRepository;
     private final JsonHelper jsonHelper;
 
     @Value("${file.base.url}")
@@ -59,13 +62,19 @@ public class ApplicationService {
             UserInfo userInfo = userRepository.findByOpenid(openId)
                     .orElseThrow(() -> new IllegalArgumentException("用户不存在"));
 
-            boolean isAdmin = "ADMIN".equals(userInfo.getRole()) || "SUPER_ADMIN".equals(userInfo.getRole());
+            List<OrganizationInfo> organizationInfos = organizationInfoRepository.findAllByLeaderId(userInfo.getId());
 
-            List<Application> applicationList;
+            boolean isAdmin = "ADMIN".equals(userInfo.getRole()) || "SUPER_ADMIN".equals(userInfo.getRole());
+            boolean isOrgLeader = organizationInfos != null && !organizationInfos.isEmpty();
+
+            if (!isAdmin && !isOrgLeader) {
+                return ApiResponse.fail("权限不足：仅管理员或组织负责人可查看待处理申请");
+            }
+
+            List<Application> applicationList = new ArrayList<>();
 
             if (isAdmin) {
                 // === 管理员逻辑 ===
-                // 管理员可以看到：创建社团、解散社团、**演出申请** 等
                 if (applicationType != null && status != null) {
                     applicationList = applicationRepository.findByApplicationTypeAndStatus(applicationType, status);
                 } else if (applicationType != null) {
@@ -76,28 +85,59 @@ public class ApplicationService {
                     applicationList = applicationRepository.findAll();
                 }
             } else {
-                // === 组织首领逻辑 ===
-                // 只能看 JOIN_ORG，且只能看自己管理的社团
-
-                // 1. 权限校验
+                // === 组织首领逻辑 (isOrgLeader) ===
                 if (applicationType != null && !"JOIN_ORG".equals(applicationType)) {
                     return ApiResponse.fail("权限不足：组织负责人只能查看加入组织申请");
                 }
+                List<Long> myOrgIds = organizationInfos.stream().map(OrganizationInfo::getId).toList();
 
-                // 2. 找到“我作为 leader 的组织 ID 列表”
-                List<OrganizationInfo> myLeaderOrgs = organizationInfoRepository.findAllByLeaderId(userInfo.getId());
-                if (myLeaderOrgs == null || myLeaderOrgs.isEmpty()) {
-                    return ApiResponse.success(List.of());
-                }
-                List<Long> myOrgIds = myLeaderOrgs.stream().map(OrganizationInfo::getId).toList();
-
-                // 3. 查询
                 if (status != null) {
                     applicationList = applicationRepository
                             .findByApplicationTypeAndTargetIdInAndStatus("JOIN_ORG", myOrgIds, status);
                 } else {
                     applicationList = applicationRepository
                             .findByApplicationTypeAndTargetIdIn("JOIN_ORG", myOrgIds);
+                }
+            }
+
+            // === 批量预查询数据 (避免循环查库) ===
+            Set<Long> joinOrgIds = new HashSet<>();       // 需要查名的社团ID (JOIN_ORG的目标)
+            Set<Long> performanceIds = new HashSet<>();   // 需要查的演出ID (PERFORMANCE_APPLY的目标)
+
+            for (Application app : applicationList) {
+                if ("JOIN_ORG".equals(app.getApplicationType())) {
+                    joinOrgIds.add(app.getTargetId());
+                } else if ("PERFORMANCE_APPLY".equals(app.getApplicationType())) {
+                    performanceIds.add(app.getTargetId());
+                }
+            }
+
+            // 1. 预加载社团名称 (用于 JOIN_ORG 的目标)
+            Map<Long, String> orgNameMap = new HashMap<>();
+            if (!joinOrgIds.isEmpty()) {
+                List<OrganizationInfo> orgs = organizationInfoRepository.findAllById(joinOrgIds);
+                orgs.forEach(org -> orgNameMap.put(org.getId(), org.getName()));
+            }
+
+            // 2. 预加载演出信息 & 演出主办方社团信息
+            Map<Long, Performance> performanceMap = new HashMap<>();
+            Map<Long, String> organizerOrgNameMap = new HashMap<>();
+
+            if (!performanceIds.isEmpty()) {
+                List<Performance> performances = performanceRepository.findAllById(performanceIds);
+                Set<Long> organizerOrgIds = new HashSet<>();
+
+                for (Performance p : performances) {
+                    performanceMap.put(p.getId(), p);
+                    if ("ORGANIZATION".equals(p.getOrganizerType())) {
+                        organizerOrgIds.add(p.getOrganizerId());
+                    }
+                }
+
+                // 查出演出主办方的社团名
+                if (!organizerOrgIds.isEmpty()) {
+                    List<OrganizationInfo> organizerOrgs = organizationInfoRepository.findAllById(organizerOrgIds);
+                    organizerOrgs.forEach(org -> organizerOrgNameMap.put(org.getId(), org.getName()));
                 }
             }
 
@@ -110,15 +150,14 @@ public class ApplicationService {
                 dto.setApplicationId(app.getId());
                 dto.setApplicationType(app.getApplicationType());
                 dto.setApplicantOpenId(app.getApplicant().getOpenid());
-                dto.setApplicantName(app.getApplicant().getNickname());
+                dto.setApplicantName(app.getApplicant().getNickname()); // 默认是提交人
                 dto.setApplyTime(app.getApplyTime());
                 dto.setStatus(app.getStatus());
                 dto.setTargetId(app.getTargetId());
                 dto.setExtraData(app.getExtraData());
 
-                // 辅助方法解析 display info (例如从 extraData 解析组织名，或者如果是演出申请，这里可能解析不出演出名)
-                // 建议：对于 PERFORMANCE_APPLY，如果 extraData 里存了 title，这里就能显示。
-                jsonHelper.parseDisplayDtoFields(app, dto, objectMapper);
+                // === 填充富文本信息 (TargetName & ApplyUnit) ===
+                fillRichInfo(app, dto, orgNameMap, performanceMap, organizerOrgNameMap, objectMapper);
 
                 resultList.add(dto);
             }
@@ -243,6 +282,18 @@ public class ApplicationService {
                 throw new IllegalArgumentException("只能撤销待审核的申请");
             }
 
+            if ("PERFORMANCE_APPLY".equals(application.getApplicationType())) {
+                // 如果是演出申请，检查演出状态
+                Performance performance = performanceRepository.findById(application.getTargetId())
+                        .orElseThrow(() -> new IllegalArgumentException("关联的演出不存在"));
+                if (performance.getPublishStatus() != 0) { // 0-待审核
+                    throw new IllegalArgumentException("关联的演出已被审核，无法撤销申请");
+                }
+
+                performance.setPublishStatus(5); // 5-保存为草稿
+                performanceRepository.save(performance);
+            }
+
             application.setStatus(4); // 4-撤销
             applicationRepository.save(application);
 
@@ -253,6 +304,66 @@ public class ApplicationService {
         } catch (Exception e) {
             logger.warning("撤销申请失败: " + e.getMessage());
             return ApiResponse.fail("撤销申请失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 辅助方法：填充 DTO 的 targetName 和 applyUnitName
+     */
+    private void fillRichInfo(Application app,
+                              PendingApplicationDto dto,
+                              Map<Long, String> joinOrgNameMap,
+                              Map<Long, Performance> performanceMap,
+                              Map<Long, String> organizerOrgNameMap,
+                              ObjectMapper objectMapper) {
+        String type = app.getApplicationType();
+
+        // 默认申请主体是“用户”
+        dto.setApplyUnitType("USER");
+        dto.setApplyUnitName(app.getApplicant().getNickname());
+        dto.setTargetName("未知目标");
+
+        try {
+            if ("CREATE_ORG".equals(type)) {
+                // 申请创建社团：目标名在 extraData
+                JsonNode node = safeReadTree(app.getExtraData(), objectMapper);
+                if (node != null && node.has("orgName")) {
+                    dto.setTargetName(node.get("orgName").asText());
+                }
+            }
+            else if ("JOIN_ORG".equals(type)) {
+                // 申请加入社团：目标名是社团名
+                dto.setTargetName(joinOrgNameMap.getOrDefault(app.getTargetId(), "未知社团"));
+            }
+            else if ("PERFORMANCE_APPLY".equals(type)) {
+                // 演出申请：目标名是演出标题，申请主体可能是社团
+                Performance p = performanceMap.get(app.getTargetId());
+                if (p != null) {
+                    dto.setTargetName(p.getTitle());
+
+                    // 判断主办方类型
+                    if ("ORGANIZATION".equals(p.getOrganizerType())) {
+                        dto.setApplyUnitType("ORGANIZATION");
+                        // 从预查询的 map 里拿社团名
+                        String orgName = organizerOrgNameMap.getOrDefault(p.getOrganizerId(), "未知社团");
+                        dto.setApplyUnitName(orgName);
+                    } else {
+                        // 个人申请：ApplyUnitName 就是 ApplicantName (User)，上面默认值已设置
+                        dto.setApplyUnitType("USER");
+                    }
+                }
+            }
+        } catch (Exception e) {
+            // 忽略非关键解析错误
+        }
+    }
+
+    private JsonNode safeReadTree(String json, ObjectMapper om) {
+        if (!StringUtils.hasText(json)) return null;
+        try {
+            return om.readTree(json);
+        } catch (Exception e) {
+            return null;
         }
     }
 }

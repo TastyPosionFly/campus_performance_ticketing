@@ -25,8 +25,15 @@ public interface PerformanceSessionRepository extends JpaRepository<PerformanceS
      * @param endTime 拟定结束时间
      * @return 冲突的场次列表（如果为空说明无冲突）
      */
-    @Query("SELECT s FROM PerformanceSession s WHERE s.venue.id = :venueId " +
-            "AND s.startTime < :endTime AND s.endTime > :startTime")
+    @Query("SELECT s FROM PerformanceSession s " +
+            "JOIN s.performance p " + // 关键：关联 Performance 表
+            "WHERE s.venue.id = :venueId " +
+            "AND s.startTime < :endTime " +
+            "AND s.endTime > :startTime " +
+            // 关键过滤：只把以下状态视为冲突：
+            // 0-待审批, 1-已发布
+            // 排除：2-审批拒绝, 3-已取消, 4-已下架(看业务), 5-已结束(但时间重叠通常意味着还没结束), 6-被征用
+            "AND p.publishStatus IN (0, 1)")
     List<PerformanceSession> findConflicts(@Param("venueId") Long venueId,
                                            @Param("startTime") LocalDateTime startTime,
                                            @Param("endTime") LocalDateTime endTime);

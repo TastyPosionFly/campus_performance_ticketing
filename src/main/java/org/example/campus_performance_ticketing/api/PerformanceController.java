@@ -4,11 +4,13 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.example.campus_performance_ticketing.logic.PerformanceApplyService;
+import org.example.campus_performance_ticketing.logic.PerformanceSearchService;
 import org.example.campus_performance_ticketing.logic.PerformanceUpdateService;
 import org.example.campus_performance_ticketing.logic.dto.ApiResponse;
 import org.example.campus_performance_ticketing.logic.dto.performance.CreatePerformanceCmd;
 import org.example.campus_performance_ticketing.logic.dto.performance.PerformanceDetailDto;
 import org.example.campus_performance_ticketing.logic.dto.performance.UpdatePerformanceRequestDto;
+import org.springframework.data.domain.Page;
 import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -25,6 +27,7 @@ public class PerformanceController {
 
     private final PerformanceApplyService performanceApplyService;
     private final PerformanceUpdateService performanceUpdateService;
+    private final PerformanceSearchService performanceSearchService;
 
     /**
      * 用户/社团提交演出申请 (包含图片上传)
@@ -64,5 +67,37 @@ public class PerformanceController {
 
         String userOpenId = (String) request.getAttribute("openid");
         return performanceUpdateService.updatePerformance(userOpenId, updateRequest, newPosterFile, staffPhotoFiles);
+    }
+
+    /**
+     * 分页搜索演出列表
+     * GET /api/performance/list?keyword=xxx&categoryId=1&status=1&page=0&size=10
+     *
+     * @param keyword    搜索关键词 (可选)
+     * @param categoryId 分类ID (可选)
+     * @param status     状态 (可选，默认建议传 1-已发布)
+     * @param page       页码 (默认 0)
+     * @param size       每页大小 (默认 10)
+     */
+    @GetMapping("/list")
+    public ApiResponse<Page<PerformanceDetailDto>> searchPerformances(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Integer categoryId,
+            @RequestParam(required = false) Integer status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+
+        return performanceSearchService.searchPerformances(keyword, categoryId, status, page, size);
+    }
+
+    /**
+     * 获取演出详情
+     * GET /api/performance/{id}
+     *
+     * @param id 演出ID
+     */
+    @GetMapping("/{id}")
+    public ApiResponse<PerformanceDetailDto> getPerformanceDetail(@PathVariable Long id) {
+        return performanceSearchService.getPerformanceDetail(id);
     }
 }

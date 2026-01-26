@@ -2,10 +2,11 @@ package org.example.campus_performance_ticketing.dao;
 
 import org.example.campus_performance_ticketing.model.Performance;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
 import java.util.List;
 
-public interface PerformanceRepository extends JpaRepository<Performance, Long> {
+public interface PerformanceRepository extends JpaRepository<Performance, Long>, JpaSpecificationExecutor<Performance> {
 
     /**
      * 根据发布状态查询演出列表

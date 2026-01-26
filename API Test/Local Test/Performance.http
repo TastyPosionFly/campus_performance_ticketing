@@ -287,3 +287,58 @@ Content-Type: image/jpeg
 
 < ./avatar.jpg
 --WebAppBoundary--
+
+
+### ========================================================================
+### 9. 分页查询 - 无筛选条件 (默认查所有)(Pass)
+### ========================================================================
+GET {{baseURL}}/performance/list?page=0&size=5
+Accept: application/json
+Authorization: Bearer {{token}}
+
+
+### ========================================================================
+### 10. 分页查询 - 按状态筛选 (查已发布 status=1) (Pass)
+### ========================================================================
+GET {{baseURL}}/performance/list?status=1&page=0&size=10
+Accept: application/json
+Authorization: Bearer {{token}}
+
+### ========================================================================
+### 11. 分页查询 - 按关键词搜索 (标题或描述包含 "Concert") (Pass)
+### ========================================================================
+GET {{baseURL}}/performance/list?keyword=Concert&status=1
+Accept: application/json
+Authorization: Bearer {{token}}
+
+
+### ========================================================================
+### 12. 分页查询 - 按分类筛选 (categoryId=1) (Pass)
+### ========================================================================
+GET {{baseURL}}/performance/list?categoryId=1&status=1
+Accept: application/json
+Authorization: Bearer {{token}}
+
+
+### ========================================================================
+### 13. 分页查询 - 组合筛选 (关键词 + 分类 + 状态) (Pass)
+### ========================================================================
+GET {{baseURL}}/performance/list?keyword=新年&categoryId=1&status=1&page=0&size=20
+Accept: application/json
+Authorization: Bearer {{token}}
+
+
+### ========================================================================
+### 14. 获取演出详情 (ID=1) (Pass)
+### ========================================================================
+GET {{baseURL}}/performance/1
+Accept: application/json
+Authorization: Bearer {{token}}
+
+
+### ========================================================================
+### 15. 获取演出详情 - 不存在的ID (测试 500/400 异常返回) (Pass)
+### ========================================================================
+GET {{baseURL}}/performance/99999
+Accept: application/json
+Authorization: Bearer {{token}}

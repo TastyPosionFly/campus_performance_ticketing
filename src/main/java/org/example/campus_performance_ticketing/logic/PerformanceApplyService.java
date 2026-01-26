@@ -3,7 +3,6 @@ package org.example.campus_performance_ticketing.logic;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.campus_performance_ticketing.dao.*;
@@ -33,7 +32,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Valid
-public class PerformanceService {
+public class PerformanceApplyService {
 
     private final PerformanceRepository performanceRepository;
     private final PerformanceSessionRepository sessionRepository;
@@ -43,7 +42,7 @@ public class PerformanceService {
     private final OrganizationInfoRepository organizationInfoRepository;
     private final VenueBlockedDayRepository venueBlockedDayRepository;
 
-    private static final Logger logger = Logger.getLogger(PerformanceService.class.getName());
+    private static final Logger logger = Logger.getLogger(PerformanceApplyService.class.getName());
 
 
     @Value("${performance.post.temp-dir}")
@@ -154,18 +153,50 @@ public class PerformanceService {
         return performanceRepository.save(performance);
     }
 
+    /**
+     * 创建审批申请记录
+     * 将演出标题、简介、申请理由、场次信息等详细数据写入 extraData
+     */
     private void createApplicationRecord(UserInfo applicant, Performance performance, CreatePerformanceCmd cmd) {
         Application application = new Application();
         application.setApplicant(applicant);
         application.setApplicationType("PERFORMANCE_APPLY");
         application.setTargetId(performance.getId());
-        application.setStatus(1);
+        application.setStatus(1); // 状态：1-待审批
+
         Map<String, Object> extra = new HashMap<>();
-        extra.put("reason", cmd.getApplyReason());
+
+        // 1. 基础信息
         extra.put("performanceTitle", performance.getTitle());
+        extra.put("description", performance.getDescription());
+        extra.put("applyReason", cmd.getApplyReason());
+
+        // 2. 演出场次与场地信息
+        if (performance.getSessions() != null && !performance.getSessions().isEmpty()) {
+            List<Map<String, Object>> sessionsInfo = new ArrayList<>();
+            for (PerformanceSession session : performance.getSessions()) {
+                Map<String, Object> sessionMap = new HashMap<>();
+                sessionMap.put("startTime", session.getStartTime().toString());
+                sessionMap.put("endTime", session.getEndTime().toString());
+                sessionMap.put("venueId", session.getVenue().getId());
+                sessionMap.put("venueName", session.getVenue().getName());
+                sessionsInfo.add(sessionMap);
+            }
+            extra.put("sessions", sessionsInfo);
+
+            // 为了方便管理员预览，可直接提取第一个场地的名称（通常演出在同一个场地）
+            if (!performance.getSessions().isEmpty()) {
+                extra.put("primaryVenueName", performance.getSessions().get(0).getVenue().getName());
+            }
+        }
+
         try {
+            // 将 Map 序列化为 JSON 字符串存入 extraData
             application.setExtraData(new ObjectMapper().writeValueAsString(extra));
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            logger.warning("申请单 extraData 序列化失败: " + e.getMessage());
+        }
+
         applicationRepository.save(application);
     }
 
@@ -242,6 +273,8 @@ public class PerformanceService {
             throw new IllegalStateException("排期冲突: " + conflict.getPerformance().getTitle());
         }
     }
+
+
 
     /**
      * 私有方法：集中处理文件上传

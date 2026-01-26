@@ -15,10 +15,8 @@ import org.example.campus_performance_ticketing.logic.dto.performance.SessionCmd
 import org.example.campus_performance_ticketing.model.Performance;
 import org.example.campus_performance_ticketing.model.PerformanceSession;
 import org.example.campus_performance_ticketing.model.UserInfo;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -31,7 +29,7 @@ import java.util.List;
 @Valid
 public class AdminPerformanceService {
 
-    private final PerformanceService performanceService; // 复用基础创建逻辑
+    private final PerformanceApplyService performanceApplyService; // 复用基础创建逻辑
     private final PerformanceSessionRepository sessionRepository;
     private final PerformanceRepository performanceRepository;
     private final UserRepository userRepository;
@@ -98,7 +96,7 @@ public class AdminPerformanceService {
 
             // 4. 创建新演出
             // 注意：请确保 PerformanceService 中已经添加了 createPerformanceEntity 方法
-            Performance newPerformance = performanceService.createPerformanceEntity(cmd);
+            Performance newPerformance = performanceApplyService.createPerformanceEntity(cmd);
 
             // 5. 转换为 DTO 返回
             AdminPerformanceDto resultDto = AdminPerformanceDto.from(newPerformance);

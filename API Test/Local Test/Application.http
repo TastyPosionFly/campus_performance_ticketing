@@ -48,7 +48,7 @@ Authorization: Bearer {{token}}
 
 [
   {
-    "applicationId": 5,
+    "applicationId": 4,
     "newStatus": 2,
     "reason": "同意理由"
   }

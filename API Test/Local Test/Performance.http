@@ -49,8 +49,8 @@ Content-Type: application/json
   "sessions": [
     {
       "venueId": {{venueId}},
-      "startTime": "2026-12-24T19:00:00",
-      "endTime": "2026-12-26T21:00:00",
+      "startTime": "2026-02-24T19:00:00",
+      "endTime": "2026-02-26T21:00:00",
       "ticketTotal": 50
     }
   ],
@@ -165,4 +165,125 @@ Content-Type: application/json
   ],
   "staffList": []
 }
+--WebAppBoundary--
+
+
+### ========================================================================
+### 6. [修改] 场景D：举办者(Organizer) 仅修改场次时间 (延期) - 应成功 (Pass)
+### ========================================================================
+# 预期结果：状态码 200，sessions 时间更新。
+PUT {{baseURL}}/performance/update
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="performanceCmd.performanceId"
+
+3
+--WebAppBoundary
+Content-Disposition: form-data; name="sessions[0].venueId"
+
+{{venueId}}
+--WebAppBoundary
+Content-Disposition: form-data; name="sessions[0].startTime"
+
+2026-12-27T19:00:00
+--WebAppBoundary
+Content-Disposition: form-data; name="sessions[0].endTime"
+
+2026-12-27T22:00:00
+--WebAppBoundary
+Content-Disposition: form-data; name="sessions[0].ticketTotal"
+
+50
+--WebAppBoundary
+Content-Disposition: form-data; name="delayReason"
+
+因天气原因延期一天
+--WebAppBoundary--
+
+
+### ========================================================================
+### 7. [修改] 场景E：举办者(Organizer) 尝试修改标题和海报 - 应被忽略 (Pass)
+### ========================================================================
+# 预期结果：状态码 200 (接口通畅)，但返回的 data 中 title 仍为 "原始标题-吉他路演"，海报未变。
+# 后台日志应显示 "举办者尝试修改演出内容被忽略..."
+PUT {{baseURL}}/performance/update
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="performanceCmd.performanceId"
+
+3
+--WebAppBoundary
+Content-Disposition: form-data; name="performanceCmd.title"
+
+举办者试图篡改的标题
+--WebAppBoundary
+Content-Disposition: form-data; name="newPosterFile"; filename="hacker_poster.jpg"
+Content-Type: image/jpeg
+
+< ./avatar.jpg
+--WebAppBoundary--
+
+
+### ========================================================================
+### 8. [修改] 场景F：管理员(Admin) 全量修改 - 应全部生效 (Pass)
+### ========================================================================
+# 预期结果：状态码 200，title 变为 "管理员修改后的标题"，海报更新，人员增加，状态变为已发布(1)。
+PUT {{baseURL}}/performance/update
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="data"
+Content-Type: application/json
+
+{
+  "performanceCmd": {
+    "performanceId": 3,
+    "title": "管理员修改后的标题JSON版",
+    "description": "管理员审核通过。",
+    "publishStatus": 1
+  },
+  "sessions": [
+    {
+      "venueId": {{venueId}},
+      "startTime": "2026-12-30T18:00:00",
+      "endTime": "2026-12-30T22:00:00",
+      "ticketTotal": 100
+    }
+  ],
+  "staffList": [
+    {
+      "staffName": "李四",
+      "staffType": "嘉宾",
+      "introduction": "特邀",
+      "sortOrder": 2,
+      "staffAvatar": "lisi.jpg"
+    },
+    {
+      "staffName": "王五",
+      "staffType": "嘉宾",
+      "introduction": "特邀",
+      "sortOrder": 3
+    }
+  ]
+}
+--WebAppBoundary
+Content-Disposition: form-data; name="newPosterFile"; filename="admin_poster.jpg"
+Content-Type: image/jpeg
+
+< ./avatar.jpg
+--WebAppBoundary
+Content-Disposition: form-data; name="staffPhotoFiles"; filename="zhangsan.jpg"
+Content-Type: image/jpeg
+
+< ./avatar.jpg
+--WebAppBoundary
+Content-Disposition: form-data; name="staffPhotoFiles"; filename="lisi.jpg"
+Content-Type: image/jpeg
+
+< ./avatar.jpg
 --WebAppBoundary--

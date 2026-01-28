@@ -1,4 +1,6 @@
 DROP TABLE IF ExISTS application;
+DROP TABLE IF EXISTS ticket;
+DROP TABLE IF EXISTS ticket_template;
 DROP TABLE IF EXISTS performance_staff;
 DROP TABLE IF EXISTS performance_session;
 DROP TABLE IF EXISTS performance;

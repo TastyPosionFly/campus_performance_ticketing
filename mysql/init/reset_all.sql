@@ -15,6 +15,8 @@ SOURCE /docker-entrypoint-initdb.d/schema/07_venue_block_day_table.sql;
 SOURCE /docker-entrypoint-initdb.d/schema/08_performance_table.sql;
 SOURCE /docker-entrypoint-initdb.d/schema/09_performance_session_table.sql;
 SOURCE /docker-entrypoint-initdb.d/schema/10_performance_staff_table.sql;
+SOURCE /docker-entrypoint-initdb.d/schema/11_ticket_template_table.sql;
+SOURCE /docker-entrypoint-initdb.d/schema/12_ticket_table.sql;
 SOURCE /docker-entrypoint-initdb.d/schema/15_application_table.sql;
 
 -- 3. 初始化数据

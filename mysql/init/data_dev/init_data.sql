@@ -175,3 +175,40 @@ VALUES
 INSERT INTO `performance_staff` (`performance_id`, `user_id`, `staff_name`, `staff_type`, `staff_avatar`, `introduction`, `sort_order`, `created_at`)
 VALUES
     (2, 2, '陈主持', '主持人', 'data/staff_photo/monalisa-500x500.jpg', '广播台金牌主持。', 1, NOW());
+
+
+-- ==========================================
+-- 11. 初始化电子票模板数据 (TicketTemplate)
+-- ==========================================
+
+-- 场景：为场次 101 设置了一个自定义的电子票背景图，并已上架
+INSERT INTO `ticket_template` (`id`, `session_id`, `background_img_url`, `status`, `created_at`, `updated_at`)
+VALUES
+    (1, 101, 'data/ticket_photo/monalisa-500x500.jpg', 1, NOW(), NOW());
+
+-- 场景：为场次 102 准备了一个背景图，但暂时还未上架（草稿状态）
+INSERT INTO `ticket_template` (`id`, `session_id`, `background_img_url`, `status`, `created_at`, `updated_at`)
+VALUES
+    (2, 102, 'data/ticket_photo/monalisa-500x500.jpg', 0, NOW(), NOW());
+
+
+-- ==========================================
+-- 12. 初始化用户票据数据 (Ticket)
+-- ==========================================
+
+-- 场景 A：用户 1 预约了场次 101 的票，状态为“已预约”（待参加）
+-- 假设核销码是随机生成的 UUID
+INSERT INTO `ticket` (`id`, `ticket_code`, `user_id`, `performance_id`, `session_id`, `status`, `check_in_time`, `check_in_operator_id`, `created_at`, `updated_at`)
+VALUES
+    (1, 'uuid-ticket-code-001', 1, 1, 101, 0, NULL, NULL, NOW(), NOW());
+
+-- 场景 B：用户 1 还预约了场次 102 的票，但已经核销入场了
+-- 假设检票员的用户ID是 2
+INSERT INTO `ticket` (`id`, `ticket_code`, `user_id`, `performance_id`, `session_id`, `status`, `check_in_time`, `check_in_operator_id`, `created_at`, `updated_at`)
+VALUES
+    (2, 'uuid-ticket-code-002', 1, 1, 102, 1, NOW(), 2, DATE_SUB(NOW(), INTERVAL 2 HOUR), NOW());
+
+-- 场景 C：用户 1 曾经预约过场次 101 的另一张票，但是主动取消了
+INSERT INTO `ticket` (`id`, `ticket_code`, `user_id`, `performance_id`, `session_id`, `status`, `check_in_time`, `check_in_operator_id`, `created_at`, `updated_at`)
+VALUES
+    (3, 'uuid-ticket-code-003', 1, 1, 101, 2, NULL, NULL, DATE_SUB(NOW(), INTERVAL 1 DAY), NOW());

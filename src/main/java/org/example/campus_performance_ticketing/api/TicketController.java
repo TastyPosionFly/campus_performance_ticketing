@@ -2,14 +2,18 @@ package org.example.campus_performance_ticketing.api;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
+import org.example.campus_performance_ticketing.logic.TicketService;
 import org.example.campus_performance_ticketing.logic.TicketTemplateService;
 import org.example.campus_performance_ticketing.logic.dto.ApiResponse;
-import org.example.campus_performance_ticketing.logic.dto.ticket.TicketTemplateUpdateDTO;
-import org.example.campus_performance_ticketing.logic.dto.ticket.TicketTemplateUploadDTO;
+import org.example.campus_performance_ticketing.logic.dto.ticket.*;
+import org.springframework.data.domain.Page;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/ticket")
@@ -18,6 +22,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class TicketController {
 
     private final TicketTemplateService ticketTemplateService;
+    private final TicketService ticketService;
 
     /**
      * 上传电子票模板 (图片)
@@ -59,5 +64,76 @@ public class TicketController {
     @GetMapping("/template/url/{sessionId}")
     public ApiResponse<String> getTicketTemplateUrl(@PathVariable Long sessionId) {
         return ticketTemplateService.getActiveTicketTemplateUrl(sessionId);
+    }
+
+    /**
+     * 用户预约/抢票
+     * 权限：需登录
+     */
+    @PostMapping("/book")
+    public ApiResponse<TicketDetailDTO> bookTicket(
+            HttpServletRequest request,
+            @RequestBody @Valid TicketBookingDTO dto
+    ) {
+        String openId = (String) request.getAttribute("openid");
+        return ticketService.bookTicket(openId, dto);
+    }
+
+    /**
+     * 获取单张票据详情
+     * 权限：需登录，且只能查看自己的票
+     */
+    @GetMapping("/{ticketId}")
+    public ApiResponse<TicketDetailDTO> getTicketDetail(
+            HttpServletRequest request,
+            @PathVariable Long ticketId
+    ) {
+        String openId = (String) request.getAttribute("openid");
+        return ticketService.getTicketDetail(openId, ticketId);
+    }
+
+    /**
+     * 获取我的票夹列表 (分页)
+     * 权限：需登录
+     *
+     * GET /api/ticket/my?page=0&size=10
+     * GET /api/ticket/my?page=0&size=10&status=0 (只看已预约)
+     */
+    @GetMapping("/my")
+    public ApiResponse<Page<TicketDetailDTO>> getMyTickets(
+            HttpServletRequest request,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) Integer status
+    ) {
+        String openId = (String) request.getAttribute("openid");
+        return ticketService.getMyTickets(openId, page, size, status);
+    }
+
+    /**
+     * 管理员扫码核销 (检票)
+     * 权限：需登录 (Service层会进一步校验是否为该场地的管理员)
+     *
+     * 参数通过 Query String 传递: POST /api/ticket/check-in?ticketCode=XXXX
+     */
+    @PostMapping("/check-in")
+    public ApiResponse<Void> checkInTicket(
+            HttpServletRequest request,
+            @RequestParam @Valid @NotBlank(message = "核销码不能为空") String ticketCode
+    ) {
+        String openId = (String) request.getAttribute("openid");
+        return ticketService.checkInTicket(openId, ticketCode);
+    }
+
+    /**
+     * 获取实际到场人员名单
+     */
+    @GetMapping("/attendance/{sessionId}")
+    public ApiResponse<List<TicketAttendanceDTO>> getAttendanceList(
+            HttpServletRequest request,
+            @PathVariable Long sessionId
+    ) {
+        String openId = (String) request.getAttribute("openid");
+        return ticketService.getAttendanceList(openId, sessionId);
     }
 }

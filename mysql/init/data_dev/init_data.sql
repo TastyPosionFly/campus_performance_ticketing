@@ -148,8 +148,8 @@ VALUES
 -- 插入场次：周五晚场 和 周六晚场
 INSERT INTO `performance_session` (`performance_id`, `venue_id`, `start_time`, `end_time`, `ticket_total`, `ticket_surplus`)
 VALUES
-    (1, 1, '2024-06-20 19:00:00', '2024-06-20 21:30:00', 500, 500),
-    (1, 1, '2024-06-21 19:00:00', '2024-06-21 21:30:00', 500, 480);
+    (1, 1, '2026-06-20 19:00:00', '2026-06-20 21:30:00', 500, 500),
+    (1, 1, '2026-06-21 19:00:00', '2026-06-21 21:30:00', 500, 480);
 
 -- 插入人员：导演（校内用户）和 主演（校外特邀）
 INSERT INTO `performance_staff` (`performance_id`, `user_id`, `staff_name`, `staff_type`, `staff_avatar`, `introduction`, `sort_order`, `created_at`)

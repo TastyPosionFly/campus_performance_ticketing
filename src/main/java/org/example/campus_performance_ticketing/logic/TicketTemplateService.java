@@ -25,6 +25,7 @@ import java.util.Optional;
 
 @Slf4j
 @Service
+@Valid
 @RequiredArgsConstructor
 public class TicketTemplateService {
 

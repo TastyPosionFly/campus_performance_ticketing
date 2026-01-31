@@ -1,9 +1,5 @@
 ### @env local
 
-# ==============================================================================
-# 0. 准备工作：登录以获取 Token
-# ==============================================================================
-
 ### 超级管理员登录 (获取 Token)
 POST {{baseURL}}/auth/login
 Content-Type: application/json
@@ -19,7 +15,7 @@ POST {{baseURL}}/auth/login
 Content-Type: application/json
 
 {
-  "openid": "openid_002"
+  "openid": "openid_004"
 }
 
 > {% client.global.set("user_token", response.body.token); %}
@@ -157,3 +153,75 @@ Authorization: Bearer {{user_token}}
 GET http://localhost:8080/data/ticket_photo/12edad08-135a-4445-95f2-a7ce747a5701.jpg
 Accept: application/json
 Authorization: Bearer {{user_token}}
+
+# ==============================================================================
+
+### 10: 成功预约场次 1
+POST {{baseURL}}/ticket/book
+Authorization: Bearer {{user_token}}
+Content-Type: application/json
+
+{
+  "sessionId": 1
+}
+
+### 11: 重复预约同一个场次 (预期失败)
+POST {{baseURL}}/ticket/book
+Authorization: Bearer {{user_token}}
+Content-Type: application/json
+
+{
+  "sessionId": 1
+}
+
+
+###12.  查询刚刚预约的票据详情 (请替换 ID)
+GET {{baseURL}}/ticket/4
+Authorization: Bearer {{admin_token}}
+
+### 13. 查询我的全部票据 (第一页，每页 10 条)
+GET {{baseURL}}/ticket/my?page=0&size=10
+Authorization: Bearer {{admin_token}}
+
+### 14。 查询我“已预约”状态的票据 (status=0)
+GET {{baseURL}}/ticket/my?page=0&size=10&status=1
+Authorization: Bearer {{admin_token}}
+
+# ... (之前的测试请求) ...
+
+# ==============================================================================
+# 4. 管理员核销 (检票)
+# ==============================================================================
+
+### 15: 场地管理员成功核销
+POST {{baseURL}}/ticket/check-in?ticketCode=uuid-ticket-code-001
+Authorization: Bearer {{admin_token}}
+
+
+### 16: 票据已核销或失效 (预期失败)
+POST {{baseURL}}/ticket/check-in?ticketCode=uuid-ticket-code-001
+Authorization: Bearer {{user_token}}
+
+
+### 17: 非管理员尝试核销 (预期权限不足)
+POST {{baseURL}}/ticket/check-in?ticketCode=uuid-ticket-code-001
+Authorization: Bearer {{user_token}}
+
+### 18: 管理员或组织者查询 (预期成功)
+# 假设场次 101 已结束，且有一些状态为 1 (已核销) 的票据
+GET {{baseURL}}/ticket/attendance/1
+Authorization: Bearer {{admin_token}}
+Accept: application/json
+
+
+### 19: 普通用户查询 (预期失败 - 403 或 200 + 错误消息)
+# 用户 user_999 不是场次 101 的组织者，也不是管理员
+GET {{baseURL}}/ticket/attendance/1
+Authorization: Bearer {{user_token}}
+Accept: application/json
+
+
+### 20: 查询不存在的场次 (预期失败)
+GET {{baseURL}}/ticket/attendance/99999
+Authorization: Bearer {{admin_token}}
+Accept: application/json

@@ -2,6 +2,7 @@ package org.example.campus_performance_ticketing.dao;
 
 import org.example.campus_performance_ticketing.model.PerformanceSession;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -47,4 +48,25 @@ public interface PerformanceSessionRepository extends JpaRepository<PerformanceS
      * @return 演出场次列表
      */
     List<PerformanceSession> findByVenueIdAndStartTimeBetween(Long venueId, LocalDateTime startTime, LocalDateTime endTime);
+
+    /**
+     * 查找结束时间早于指定时间的所有演出场次
+     * 用于定时任务清理过期场次等场景
+     *
+     * @param endTime 指定的结束时间
+     * @return 演出场次列表
+     */
+    List<PerformanceSession> findByEndTimeBefore(LocalDateTime endTime);
+
+    // 查找所有 [已结束] 且 [未结算] 的场次
+    // status != 2 (假设 2 代表已结算)
+    List<PerformanceSession> findByEndTimeBeforeAndStatusNot(LocalDateTime time, Integer status);
+
+    /**
+     * 原子扣减库存（防止超卖的核心）
+     * 只有当 surplus > 0 时才执行更新，返回受影响行数
+     */
+    @Modifying
+    @Query("UPDATE PerformanceSession s SET s.ticketSurplus = s.ticketSurplus - 1 WHERE s.id = :sessionId AND s.ticketSurplus > 0")
+    int decreaseStock(Long sessionId);
 }

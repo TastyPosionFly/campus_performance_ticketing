@@ -1,7 +1,10 @@
 package org.example.campus_performance_ticketing.dao;
 
 import org.example.campus_performance_ticketing.model.Ticket;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
@@ -12,28 +15,45 @@ import java.util.Optional;
 public interface TicketRepository extends JpaRepository<Ticket, Long> {
 
     /**
-     * 根据核销码查找票据
-     * 场景：检票员扫码时调用
+     * 检查用户是否已在某场次拥有特定状态的票
+     * 场景：防止重复预约
+     */
+
+
+    boolean existsByUserIdAndSessionIdAndStatusIn(Long userId, Long sessionId, Integer[] statuses);
+
+
+    /**
+     * 分页查找某用户的票据，按创建时间倒序
+     * @param userId
+     * @param pageable
+     * @return
+     */
+    Page<Ticket> findByUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable);
+
+    /**
+     * 分页查找某用户在特定状态下的票据，按创建时间倒序
+     * @param userId
+     * @param status
+     * @param pageable
+     * @return
+     */
+    Page<Ticket> findByUserIdAndStatusOrderByCreatedAtDesc(Long userId, Integer status, Pageable pageable);
+
+
+    /**
+     * 根据票据码查找票据
+     * 场景：扫码核销时使用
      */
     Optional<Ticket> findByTicketCode(String ticketCode);
 
     /**
-     * 查找某用户的所有票据（通常用于“我的票夹”）
-     * 可以配合 Sort 按时间倒序
+     * 批量将某场次下所有状态为“已预约(0)”的票据更新为“已失效(3)”
+     * 场景：演出结束后清理未核销的票
      */
-    List<Ticket> findByUserId(Long userId);
-
-    /**
-     * 查找某用户在特定场次的票
-     * 场景：检查用户是否重复预约
-     */
-    Optional<Ticket> findByUserIdAndSessionId(Long userId, Long sessionId);
-
-    /**
-     * 查找某用户在特定状态下的票
-     * 场景：查找“待参加”的票
-     */
-    List<Ticket> findByUserIdAndStatus(Long userId, Integer status);
+    @Modifying
+    @Query("UPDATE Ticket t SET t.status = 3 WHERE t.session.id = :sessionId AND t.status = 0")
+    int expireTicketsBySessionId(Long sessionId);
 
     /**
      * 统计某场次特定状态的票数
@@ -42,12 +62,10 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
     long countBySessionIdAndStatus(Long sessionId, Integer status);
 
     /**
-     * 自定义查询：获取某场次的详细到场人员信息（用于导出）
-     * 包含：学号、姓名、入场时间
-     * 注意：这里返回的是 Object[]，业务层可能需要封装为 DTO
+     * 查找某场次下特定状态的所有票据 (带分页或不带分页)
+     * 这里为了导出名单，通常是全量查询，不分页
+     * 为了性能优化，使用了 JOIN FETCH 预加载 UserInfo
      */
-    @Query("SELECT t.checkInTime, u.studentNo, u.nickname, u.college " +
-            "FROM Ticket t JOIN t.user u " +
-            "WHERE t.session.id = :sessionId AND t.status = 1")
-    List<Object[]> findAttendanceListBySessionId(Long sessionId);
+    @Query("SELECT t FROM Ticket t JOIN FETCH t.user WHERE t.session.id = :sessionId AND t.status = :status")
+    List<Ticket> findBySessionIdAndStatusWithUser(Long sessionId, Integer status);
 }

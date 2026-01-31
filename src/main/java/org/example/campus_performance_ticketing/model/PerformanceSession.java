@@ -45,4 +45,11 @@ public class PerformanceSession {
 
     @Column(name = "ticket_surplus")
     private Integer ticketSurplus;
+
+    /**
+     * 场次状态：0-正常 1-已结束 2-已结算(过期票已处理)
+     * (或者您可以定义一个专门的 boolean isSettled)
+     */
+    @Column(name = "status", columnDefinition = "int default 0")
+    private Integer status;
 }

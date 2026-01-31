@@ -6,6 +6,7 @@ CREATE TABLE `performance_session` (
     `end_time` DATETIME NOT NULL COMMENT '结束时间',
     `ticket_total` INT NOT NULL DEFAULT 0 COMMENT '总票数',
     `ticket_surplus` INT NOT NULL DEFAULT 0 COMMENT '剩余票数',
+    `status` TINYINT NOT NULL DEFAULT 0 COMMENT '状态：0-正常，1-已结束，2-已结算',
     PRIMARY KEY (`id`),
     KEY `idx_performance` (`performance_id`),
     -- 用于快速检测排期冲突

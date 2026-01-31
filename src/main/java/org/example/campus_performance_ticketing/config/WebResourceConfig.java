@@ -20,11 +20,14 @@ public class WebResourceConfig implements WebMvcConfigurer {
     @Value("${venue.album.upload-dir}")
     private String venueAlbumDir;
 
-    @Value("performance.post.upload-dir")
+    @Value("${performance.post.upload-dir}")
     private String posterRealDir;
 
-    @Value("staff.photo.upload-dir")
+    @Value("${staff.photo.upload-dir}")
     private String staffRealDir;
+
+    @Value("${ticket.photo.upload-dir}")
+    private String ticketUploadDir;
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
@@ -40,11 +43,14 @@ public class WebResourceConfig implements WebMvcConfigurer {
         registry.addResourceHandler("/data/venue_album/**")
                 .addResourceLocations("file:" + ensureEndsWithSlash(venueAlbumDir));
 
-        registry.addResourceHandler("/data/performance/poster/**")
+        registry.addResourceHandler("/data/performance_post/**")
                 .addResourceLocations("file:" + ensureEndsWithSlash(posterRealDir));
 
-        registry.addResourceHandler("/data/staff/photo/**")
+        registry.addResourceHandler("/data/staff_photo/**")
                 .addResourceLocations("file:" + ensureEndsWithSlash(staffRealDir));
+
+        registry.addResourceHandler("/data/ticket_photo/**")
+                .addResourceLocations("file:" + ensureEndsWithSlash(ticketUploadDir));
     }
 
     private String ensureEndsWithSlash(String dir) {

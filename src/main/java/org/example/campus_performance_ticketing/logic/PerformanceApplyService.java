@@ -67,6 +67,11 @@ public class PerformanceApplyService {
                     .orElseThrow(() -> new IllegalArgumentException("用户不存在"));
 
             if ("USER".equals(cmd.getOrganizerType())) {
+
+                if (applicant.getStatus() != 1) {
+                    throw new SecurityException("用户状态异常，无法申请演出");
+                }
+
                 cmd.setOrganizerId(applicant.getId());
             }
 
@@ -206,6 +211,11 @@ public class PerformanceApplyService {
         } else if ("ORGANIZATION".equals(organizerType)) {
             OrganizationInfo org = organizationInfoRepository.findById(organizerId)
                     .orElseThrow(() -> new IllegalArgumentException("社团不存在"));
+
+            if (org.getStatus() != 1) {
+                throw new SecurityException("社团状态异常，无法申请演出");
+            }
+
             if (org.getLeader() == null || !org.getLeader().getId().equals(user.getId())) {
                 throw new SecurityException("非社长无权申请");
             }

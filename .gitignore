@@ -63,6 +63,7 @@ application*-prod.properties
 /data/staff_photo/*
 /data/temp/performance_post/*
 /data/temp/staff_photo/*
+/data/ticket_photo/*
 
 ## document ##
 /document/UML/

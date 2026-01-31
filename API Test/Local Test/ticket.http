@@ -1,0 +1,159 @@
+### @env local
+
+# ==============================================================================
+# 0. 准备工作：登录以获取 Token
+# ==============================================================================
+
+### 超级管理员登录 (获取 Token)
+POST {{baseURL}}/auth/login
+Content-Type: application/json
+
+{
+  "openid": "openid_001"
+}
+
+> {% client.global.set("admin_token", response.body.token); %}
+
+### 普通用户/组织者登录
+POST {{baseURL}}/auth/login
+Content-Type: application/json
+
+{
+  "openid": "openid_002"
+}
+
+> {% client.global.set("user_token", response.body.token); %}
+
+
+### 1: 成功上传电子票背景图 (管理员权限)
+# 注意：这里模拟 "dto" 参数为 JSON 字符串，"imageFile" 为文件
+POST {{baseURL}}/ticket/template/upload
+Authorization: Bearer {{admin_token}}
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="data"
+Content-Type: application/json
+
+{
+  "sessionIds": [1,2,3],
+  "status": 1
+}
+--WebAppBoundary
+Content-Disposition: form-data; name="imageFile"; filename="ticket_bg.jpg"
+Content-Type: image/jpeg
+
+< ./avatar.jpg
+--WebAppBoundary--
+
+
+### 2: 仅关联单个场次 (且状态为下架 0)
+POST {{baseURL}}/ticket/template/upload
+Authorization: Bearer {{user_token}}
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="data"
+Content-Type: application/json
+
+{
+  "sessionIds": [12],
+  "status": 0
+}
+--WebAppBoundary
+Content-Disposition: form-data; name="imageFile"; filename="ticket_bg_draft.png"
+Content-Type: image/png
+
+< ./avatar.jpg
+--WebAppBoundary--
+
+
+### 3: 权限不足测试 (普通用户尝试上传)
+POST {{baseURL}}/ticket/template/upload
+Authorization: Bearer {{user_token}}
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="data"
+Content-Type: application/json
+
+{
+  "sessionIds": [1],
+  "status": 1
+}
+--WebAppBoundary
+Content-Disposition: form-data; name="imageFile"; filename="ticket_bg.jpg"
+Content-Type: image/jpeg
+
+< ./avatar.jpg
+--WebAppBoundary--
+
+### 4. 场景：只更换图片 (不改状态)
+POST {{baseURL}}/ticket/template/update
+Authorization: Bearer {{admin_token}}
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="dto"
+Content-Type: application/json
+
+{
+  "sessionIds": [1,2]
+}
+--WebAppBoundary
+Content-Disposition: form-data; name="imageFile"; filename="new_bg.jpg"
+Content-Type: image/jpeg
+
+< ./avatar.jpg
+--WebAppBoundary--
+
+
+### 5. 场景：只下架 (不换图片)
+POST {{baseURL}}/ticket/template/update
+Authorization: Bearer {{admin_token}}
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="dto"
+Content-Type: application/json
+
+{
+  "sessionIds": [1],
+  "status": 0
+}
+--WebAppBoundary--
+
+
+### 6. 场景：既换图又上架
+POST {{baseURL}}/ticket/template/update
+Authorization: Bearer {{user_token}}
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="dto"
+Content-Type: application/json
+
+{
+  "sessionIds": [1],
+  "status": 1
+}
+--WebAppBoundary
+Content-Disposition: form-data; name="imageFile"; filename="final_bg.jpg"
+Content-Type: image/jpeg
+
+< ./avatar.jpg
+--WebAppBoundary--
+
+### 7. 获取生效的电子票URL (假设 101 已上架)
+GET {{baseURL}}/ticket/template/url/1
+Authorization: Bearer {{user_token}}
+
+### 8. 获取已下架的电子票URL (假设 102 已下架)
+# 预期：200 OK, data: null, message: "该场次暂无生效的电子票模板"
+GET {{baseURL}}/ticket/template/url/2
+Authorization: Bearer {{user_token}}
+
+### 9. 直接通过 URL 访问已上传的图片文件
+GET http://localhost:8080/data/ticket_photo/12edad08-135a-4445-95f2-a7ce747a5701.jpg
+Accept: application/json
+Authorization: Bearer {{user_token}}

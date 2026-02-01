@@ -94,7 +94,7 @@ public class PerformanceController {
      * 获取演出详情
      * GET /api/performance/{id}
      *
-     * @param id 演出ID
+     * @param id 演出 ID
      */
     @GetMapping("/{id}")
     public ApiResponse<PerformanceDetailDto> getPerformanceDetail(@PathVariable Long id) {

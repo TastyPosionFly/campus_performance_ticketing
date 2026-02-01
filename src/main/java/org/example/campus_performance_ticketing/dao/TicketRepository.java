@@ -6,6 +6,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -68,4 +69,12 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
      */
     @Query("SELECT t FROM Ticket t JOIN FETCH t.user WHERE t.session.id = :sessionId AND t.status = :status")
     List<Ticket> findBySessionIdAndStatusWithUser(Long sessionId, Integer status);
+
+    /**
+     * 【新增】统计某演出(跨场次)所有实际核销的票数
+     * 状态说明：1 (已使用/已核销), 2 (已评价) - 都视为有效入场
+     * 关联路径：Ticket -> PerformanceSession -> Performance
+     */
+    @Query("SELECT COUNT(t) FROM Ticket t WHERE t.session.performance.id = :pid AND t.status IN (1, 2)")
+    int countActualCheckInByPerformanceId(@Param("pid") Long performanceId);
 }

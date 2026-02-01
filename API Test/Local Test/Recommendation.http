@@ -1,0 +1,104 @@
+### @env local
+
+# ========================================================================
+# 0. 准备工作：登录获取 Token
+# ========================================================================
+
+### 1. 管理员登录 (用于测试 Admin 接口)
+# 假设 openid_001 是管理员账号 (SUPER_ADMIN 或 ADMIN)
+POST {{baseURL}}/auth/login
+Content-Type: application/json
+
+{
+  "openid": "openid_001"
+}
+
+> {%
+    client.global.set("admin_token", response.body.data.token);
+    client.log("Admin Token acquired");
+%}
+
+### 2. 普通用户登录 (用于测试统计上报)
+# 假设 openid_002 是普通用户
+POST {{baseURL}}/auth/login
+Content-Type: application/json
+
+{
+  "openid": "openid_002"
+}
+
+> {%
+    client.global.set("user_token", response.body.data.token);
+%}
+
+### 1.1 获取首页轮播图 (混合推荐：人工 + 热度)
+# type=1 (轮播图), limit=5
+GET {{baseURL}}/recommendation/list?type=1&limit=5
+Accept: application/json
+Authorization: Bearer {{user_token}}
+
+### 1.2 获取热门/置顶列表 (混合推荐)
+# type=2 (列表置顶), limit=10
+GET {{baseURL}}/recommendation/list?type=2&limit=10
+Accept: application/json
+Authorization: Bearer {{user_token}}
+
+### 1.3 上报浏览量 (增加热度)
+# 场景：用户点击进入演出详情页 (ID=1)
+POST {{baseURL}}/recommendation/stats/view/1
+Accept: application/json
+Authorization: Bearer {{user_token}}
+
+### 1.4 上报分享数 (增加热度)
+# 场景：用户点击分享 (ID=1)
+POST {{baseURL}}/recommendation/stats/share/1
+Accept: application/json
+Authorization: Bearer {{user_token}}
+
+
+# ========================================================================
+# 2. 管理端接口 (需要 Admin Token)
+# ========================================================================
+
+### 2.1 添加人工推荐 (轮播图)
+# 将演出 ID=1 设置为轮播图 (type=1)
+# sortOrder=100 (高优先级)
+POST {{baseURL}}/recommendation/admin/add
+Content-Type: application/json
+Authorization: Bearer {{admin_token}}
+
+{
+  "performanceId": 2,
+  "type": 1,
+  "sortOrder": 100,
+  "startTime": null,
+  "endTime": null
+}
+
+### 2.2 添加人工推荐 (列表置顶 - 限时)
+# 将演出 ID=2 置顶 (type=2)
+# 只在未来一个月内有效
+POST {{baseURL}}/recommendation/admin/add
+Content-Type: application/json
+Authorization: Bearer {{admin_token}}
+
+{
+  "performanceId": 1,
+  "type": 2,
+  "sortOrder": 99,
+  "startTime": "2023-10-01T00:00:00",
+  "endTime": "2025-12-31T23:59:59"
+}
+
+### 2.3 查看后台推荐配置列表
+# 查看 type=1 (轮播图) 的所有配置记录
+GET {{baseURL}}/recommendation/admin/config/list?type=1
+Accept: application/json
+Authorization: Bearer {{admin_token}}
+
+### 2.4 删除/下架推荐位
+# 注意：这里的 ID 是 recommendationId (推荐记录的主键)，不是 performanceId
+# 请先运行 2.3 接口获取 id，然后替换下面的 '1'
+DELETE {{baseURL}}/recommendation/admin/1
+Accept: application/json
+Authorization: Bearer {{admin_token}}

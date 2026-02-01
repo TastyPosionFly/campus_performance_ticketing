@@ -37,7 +37,7 @@ public class PerformanceSearchService {
      * 支持：关键词搜索、分类筛选、状态筛选
      *
      * @param keyword    搜索关键词 (标题或描述)
-     * @param categoryId 分类ID
+     * @param categoryId 分类 ID
      * @param status     发布状态 (如: 1-已发布)
      * @param page       页码 (从0开始)
      * @param size       每页大小

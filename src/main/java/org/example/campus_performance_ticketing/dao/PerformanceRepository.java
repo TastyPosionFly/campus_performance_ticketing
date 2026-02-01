@@ -27,4 +27,10 @@ public interface PerformanceRepository extends JpaRepository<Performance, Long>,
      * 用途：分类筛选功能
      */
     List<Performance> findByCategoryIdAndPublishStatus(Integer categoryId, Integer publishStatus);
+
+    /**
+     * 根据多个状态查询演出
+     * 用于统计服务批量获取 "已发布" 或 "已结束" 的演出
+     */
+    List<Performance> findByPublishStatusIn(List<Integer> statuses);
 }

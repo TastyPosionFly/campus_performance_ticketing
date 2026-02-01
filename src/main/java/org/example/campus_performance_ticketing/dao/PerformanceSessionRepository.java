@@ -69,4 +69,12 @@ public interface PerformanceSessionRepository extends JpaRepository<PerformanceS
     @Modifying
     @Query("UPDATE PerformanceSession s SET s.ticketSurplus = s.ticketSurplus - 1 WHERE s.id = :sessionId AND s.ticketSurplus > 0")
     int decreaseStock(Long sessionId);
+
+    /**
+     * 统计某演出所有场次的已售票数/预约量
+     * 逻辑：Sum(总票数 - 剩余票数)
+     * 使用 COALESCE 防止结果为 NULL
+     */
+    @Query("SELECT COALESCE(SUM(s.ticketTotal - s.ticketSurplus), 0) FROM PerformanceSession s WHERE s.performance.id = :performanceId")
+    Integer countTotalSoldTickets(@Param("performanceId") Long performanceId);
 }

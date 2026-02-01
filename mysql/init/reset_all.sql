@@ -17,7 +17,11 @@ SOURCE /docker-entrypoint-initdb.d/schema/09_performance_session_table.sql;
 SOURCE /docker-entrypoint-initdb.d/schema/10_performance_staff_table.sql;
 SOURCE /docker-entrypoint-initdb.d/schema/11_ticket_template_table.sql;
 SOURCE /docker-entrypoint-initdb.d/schema/12_ticket_table.sql;
-SOURCE /docker-entrypoint-initdb.d/schema/15_application_table.sql;
+SOURCE /docker-entrypoint-initdb.d/schema/13_performance_media_link_table.sql;
+SOURCE /docker-entrypoint-initdb.d/schema/14_performance_comment_table.sql;
+SOURCE /docker-entrypoint-initdb.d/schema/15_performance_recommendation_table.sql;
+SOURCE /docker-entrypoint-initdb.d/schema/16_performance_stats_table.sql;
+SOURCE /docker-entrypoint-initdb.d/schema/17_application_table.sql;
 
 -- 3. 初始化数据
 SOURCE /docker-entrypoint-initdb.d/data_dev/init_data.sql;

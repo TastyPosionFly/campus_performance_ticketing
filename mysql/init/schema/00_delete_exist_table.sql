@@ -1,4 +1,8 @@
-DROP TABLE IF ExISTS application;
+DROP TABLE IF EXISTS application;
+DROP TABLE IF EXISTS performance_stats;
+DROP TABLE IF EXISTS performance_comment;
+DROP TABLE IF EXISTS performance_recommendation;
+DROP TABLE IF EXISTS performance_media_link;
 DROP TABLE IF EXISTS ticket;
 DROP TABLE IF EXISTS ticket_template;
 DROP TABLE IF EXISTS performance_staff;

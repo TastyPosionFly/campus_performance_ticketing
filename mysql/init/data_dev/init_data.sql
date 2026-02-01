@@ -212,3 +212,48 @@ VALUES
 INSERT INTO `ticket` (`id`, `ticket_code`, `user_id`, `performance_id`, `session_id`, `status`, `check_in_time`, `check_in_operator_id`, `created_at`, `updated_at`)
 VALUES
     (3, 'uuid-ticket-code-003', 1, 1, 1, 2, NULL, NULL, DATE_SUB(NOW(), INTERVAL 1 DAY), NOW());
+
+-- ========================================================
+-- 13. 初始化数据：媒体外链 (performance_media_link)
+-- 使用完整 URL 示例
+-- ========================================================
+INSERT INTO `performance_media_link`
+(`performance_id`, `type`, `platform`, `external_key`, `title`, `sort_order`, `app_id`, `path`)
+VALUES
+-- 演出 1：Bilibili 录像回放 (URL)
+(1, 1, 1, 'https://www.bilibili.com/video/BV1xx411c7mD', '2023校园迎新晚会-全场回放', 1, 'wx7564fd5313d24844', 'pages/video/video?bvid=BV1xx411c7mD'),
+
+-- 演出 1：Bilibili 幕后花絮 (URL)
+(1, 1, 1, 'https://www.bilibili.com/video/BV1yy411c7mD', '幕后花絮：后台采访', 2, 'wx7564fd5313d24844', 'pages/video/video?bvid=BV1yy411c7mD'),
+
+-- 演出 2：Bilibili 直播间 (URL)
+(2, 2, 1, 'https://live.bilibili.com/12345678', '话剧社年度大戏-现场直播', 1, 'wx7564fd5313d24844', 'pages/live/room?room_id=12345678');
+
+-- ========================================================
+-- 14. 初始化数据：演出数据统计 (performance_stats)
+-- ========================================================
+INSERT INTO `performance_stats`
+(`performance_id`, `view_count`, `share_count`, `comment_count`, `ticket_sold_count`, `ticket_check_in_count`, `hot_score`)
+VALUES
+    (1, 5200,  50, 2, 800, 750, 9500.5),
+    (2, 120,  2, 1, 50, 0, 200.0);
+
+-- ========================================================
+-- 15. 初始化数据：评论 (performance_comment)
+-- ========================================================
+INSERT INTO `performance_comment`
+(`performance_id`, `user_id`, `content`, `status`, `create_time`)
+VALUES
+    (1, 1, '太精彩了！特别是第三个节目，直接燃爆全场！', 1, '2023-10-01 20:00:00'),
+    (1, 2, '前排占座，画质很清晰，感谢上传回放。', 1, '2023-10-01 20:05:00'),
+    (2, 1, '期待很久了，希望能准时开始。', 1, '2023-11-15 18:00:00');
+
+
+-- ========================================================
+-- 16. 初始化数据：热门推荐位 (performance_recommendation)
+-- ========================================================
+INSERT INTO `performance_recommendation`
+(`performance_id`, `type`, `sort_order`, `start_time`, `end_time`)
+VALUES
+    (1, 1, 100, NOW(), DATE_ADD(NOW(), INTERVAL 30 DAY)),
+    (2, 2, 99, NOW(), DATE_ADD(NOW(), INTERVAL 7 DAY));

@@ -221,13 +221,13 @@ INSERT INTO `performance_media_link`
 (`performance_id`, `type`, `platform`, `external_key`, `title`, `sort_order`, `app_id`, `path`)
 VALUES
 -- 演出 1：Bilibili 录像回放 (URL)
-(1, 1, 1, 'https://www.bilibili.com/video/BV1xx411c7mD', '2023校园迎新晚会-全场回放', 1, 'wx7564fd5313d24844', 'pages/video/video?bvid=BV1xx411c7mD'),
+(1, 1, 1, 'https://www.bilibili.com/video/BV1xx411c7mD', '2023校园迎新晚会-全场回放', 1, 'test_123', 'pages/video/video?bvid=BV1xx411c7mD'),
 
 -- 演出 1：Bilibili 幕后花絮 (URL)
-(1, 1, 1, 'https://www.bilibili.com/video/BV1yy411c7mD', '幕后花絮：后台采访', 2, 'wx7564fd5313d24844', 'pages/video/video?bvid=BV1yy411c7mD'),
+(1, 1, 1, 'https://www.bilibili.com/video/BV1yy411c7mD', '幕后花絮：后台采访', 2, 'test_123', 'pages/video/video?bvid=BV1yy411c7mD'),
 
 -- 演出 2：Bilibili 直播间 (URL)
-(2, 2, 1, 'https://live.bilibili.com/12345678', '话剧社年度大戏-现场直播', 1, 'wx7564fd5313d24844', 'pages/live/room?room_id=12345678');
+(2, 2, 1, 'https://live.bilibili.com/12345678', '话剧社年度大戏-现场直播', 1, 'test_123', 'pages/live/room?room_id=12345678');
 
 -- ========================================================
 -- 14. 初始化数据：演出数据统计 (performance_stats)

@@ -6,6 +6,8 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonNode;
 
+import java.util.logging.Logger;
+
 /**
  * 微信相关辅助类（小程序场景）
  */
@@ -15,6 +17,8 @@ public class WeChatHelper {
 
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
+
+    private static final Logger logger = Logger.getLogger(WeChatHelper.class.getName());
 
     public WeChatHelper() {
         SimpleClientHttpRequestFactory rf = new SimpleClientHttpRequestFactory();
@@ -46,7 +50,7 @@ public class WeChatHelper {
             if (resp == null) return null;
             JsonNode node = objectMapper.readTree(resp);
             if (node.has("errcode") && node.get("errcode").asInt() != 0) {
-                // 可记录 node.toString() 供排查
+                logger.warning("jscode2session 接口返回错误: " + resp);
                 return null;
             }
             if (node.has("openid")) {
@@ -54,7 +58,7 @@ public class WeChatHelper {
             }
             return null;
         } catch (Exception e) {
-            // 可记录日志 e.getMessage()
+            logger.warning("调用 jscode2session 接口异常: " + e.getMessage());
             return null;
         }
     }

@@ -32,6 +32,11 @@ public class FileUtil {
     public static String normalizeUploadDir(String dir) {
         if (dir == null || dir.isEmpty()) return "";
         String trimmed = dir.trim();
+        if (trimmed.startsWith("/") || trimmed.indexOf(":") == 1) { // unix 或 windows 绝对路径
+            // 只加结尾/
+            return trimmed.endsWith("/") ? trimmed : trimmed + "/";
+        }
+        // 下面是原本去掉"./"的处理
         if (trimmed.startsWith("./")) {
             trimmed = trimmed.substring(2);
         } else if (trimmed.startsWith(".\\")) {

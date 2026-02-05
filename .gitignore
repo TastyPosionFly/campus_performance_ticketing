@@ -42,10 +42,6 @@ logs/
 .DS_Store
 Thumbs.db
 
-
-## docker ##
-/compose.yaml
-
 ## server ##
 /tastypoisonfly.pem
 

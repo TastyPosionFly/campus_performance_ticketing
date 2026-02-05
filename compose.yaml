@@ -1,0 +1,79 @@
+version: '3.8'
+
+services:
+  # ===== MySQL 数据库服务 =====
+  mysql:
+    image: mysql:8.0
+    container_name: mysql-campus
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: campus_ticket
+      TZ: Asia/Shanghai
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-authentication-plugin=mysql_native_password
+      - --max_connections=1000
+    networks:
+      - campus-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ===== Spring Boot 后端服务 =====
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: campus-ticket-backend:latest
+    container_name: campus-ticket-backend
+    restart: always
+    ports:
+      - "8080:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      TZ: Asia/Shanghai
+      JAVA_OPTS: "-Xms512m -Xmx1024m"
+      # 数据库配置
+      DB_USERNAME: root
+      DB_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      # 微信配置
+      WECHAT_APPID: ${WECHAT_APPID}
+      WECHAT_SECRET: ${WECHAT_SECRET}
+      # 文件访问 URL
+      FILE_BASE_URL: ${FILE_BASE_URL}
+    volumes:
+      - /opt/campus_ticket/data:/app/data
+      - /opt/campus_ticket/logs:/app/logs
+    networks:
+      - campus-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  mysql_data:
+    driver: local
+
+networks:
+  campus-network:
+    driver: bridge

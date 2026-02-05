@@ -42,11 +42,6 @@ logs/
 .DS_Store
 Thumbs.db
 
-### Spring Boot Sensitive ###
-application*-local.yml
-application*-dev.properties
-application*-prod.properties
-/src/main/resources/config/
 
 ## docker ##
 /compose.yaml
@@ -71,3 +66,6 @@ application*-prod.properties
 
 ## Server Testing files ##
 /API Test/Server Test/*
+
+## Environment variables ##
+/.env

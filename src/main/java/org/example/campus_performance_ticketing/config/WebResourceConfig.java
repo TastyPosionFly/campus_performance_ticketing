@@ -31,25 +31,26 @@ public class WebResourceConfig implements WebMvcConfigurer {
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
-        registry.addResourceHandler("/data/avatar/**")
+        // ✅ 改成 /app/data 开头
+        registry.addResourceHandler("/app/data/avatar/**")
                 .addResourceLocations("file:" + ensureEndsWithSlash(userAvatarDir));
 
-        registry.addResourceHandler("/data/org-avatar/**")
+        registry.addResourceHandler("/app/data/org_avatar/**")
                 .addResourceLocations("file:" + ensureEndsWithSlash(orgAvatarDir));
 
-        registry.addResourceHandler("/data/org_album/**")
+        registry.addResourceHandler("/app/data/org_album/**")
                 .addResourceLocations("file:" + ensureEndsWithSlash(orgAlbumDir));
 
-        registry.addResourceHandler("/data/venue_album/**")
+        registry.addResourceHandler("/app/data/venue_album/**")
                 .addResourceLocations("file:" + ensureEndsWithSlash(venueAlbumDir));
 
-        registry.addResourceHandler("/data/performance_post/**")
+        registry.addResourceHandler("/app/data/performance_post/**")
                 .addResourceLocations("file:" + ensureEndsWithSlash(posterRealDir));
 
-        registry.addResourceHandler("/data/staff_photo/**")
+        registry.addResourceHandler("/app/data/staff_photo/**")
                 .addResourceLocations("file:" + ensureEndsWithSlash(staffRealDir));
 
-        registry.addResourceHandler("/data/ticket_photo/**")
+        registry.addResourceHandler("/app/data/ticket_photo/**")
                 .addResourceLocations("file:" + ensureEndsWithSlash(ticketUploadDir));
     }
 

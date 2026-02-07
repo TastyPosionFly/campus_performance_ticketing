@@ -27,38 +27,38 @@
 
 ## 三、接口使用说明（重点）
 
-### 1. 登录/注册
+### 1. 用户登录/注册（微信认证）
 
-路径：`POST /api/auth/login`  
-描述：支持微信小程序登录，无需token，自动注册，无重复下载头像；
-
-**请求参数（JSON）：**
+```
+POST /api/auth/login
+Content-Type: application/json
+```
+**请求示例：**
 ```json
 {
-  "openid": "openid_001",
-  "nickname": "Alice",
-  "avatar": "https://avatars.githubusercontent.com/u/1?v=4"
+  "code": "wx_login_code_abc123",           // 微信小程序 wx.login() 返回的 code
+  "openid": "o123456abcde",                 // 前端获取的 openid（可选，用于一致性校验）
+  "nickname": "小王",                       // 用户昵称
+  "avatar": "https://thirdwx.qlogo.cn/..."  // 微信头像URL，可选
 }
 ```
-**响应参数：**
+
+**响应示例：**
 ```json
 {
   "success": true,
   "data": {
-    "token": "jwt-token-value",
-    "userId": 123,
-    "openid": "openid_001",
-    "nickname": "Alice",
-    "avatar": "http://localhost:8080/data/avatar/xxxx.jpg",
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9....",
+    "userId": 222,
+    "openid": "o123456abcde",
+    "nickname": "小王",
+    "avatar": "http://example.com/avatars/222.jpg",
     "role": "USER",
-    "state": 1
-  }
+    "status": 1
+  },
+  "message": "登录成功"
 }
 ```
-
-**设计说明**：  
-系统登录时会检测 openid 是否已注册，并判断数据库中头像文件是否存在��如不存在本地头像且提交了网络图片则自动下载和缩放，提升用户体验，也有利于统一资源管理。
-
 ---
 
 ### 2. 获取用户信息（分角色返回）

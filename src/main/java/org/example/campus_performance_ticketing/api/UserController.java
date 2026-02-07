@@ -65,8 +65,7 @@ public class UserController {
     public ApiResponse<UserInfo> updateProfile(
             HttpServletRequest request,
             @RequestParam(required = false) String nickname,
-            @RequestParam(required = false) MultipartFile avatarFile,
-            @RequestParam(required = false) String avatarUrl,
+            @RequestPart(value = "avatarFile", required = false) MultipartFile avatarFile,
             @RequestParam(required = false) Integer userIdentity,
             @RequestParam(required = false) String studentNo,
             @RequestParam(required = false) String major,
@@ -79,23 +78,18 @@ public class UserController {
 
         String avatarPath = null;
 
-        String safeDir = FileUtil.normalizeUploadDir(avatarUploadDir);
-
+        // 处理头像文件上传
         if (avatarFile != null && !avatarFile.isEmpty()) {
             try {
+                String safeDir = FileUtil.normalizeUploadDir(avatarUploadDir);
                 avatarPath = FileUtil.saveAvatar(avatarFile, safeDir, null);
             } catch (IOException e) {
+                logger.severe("头像上传失败: " + e.getMessage());
                 return ApiResponse.fail("头像上传失败：" + e.getMessage());
-            }
-        } else if (avatarUrl != null && avatarUrl.startsWith("http")) {
-            try {
-                avatarPath = FileUtil.saveAvatarFromUrl(avatarUrl, safeDir, null);
-            } catch (IOException e) {
-                return ApiResponse.fail("头像处理失败：" + e.getMessage());
             }
         }
 
-        // 调用 Service 层用 openId 更新
+        // 调用 Service 层更新
         ApiResponse<UserInfo> response = userService.updateProfileByOpenId(
                 openId, nickname, avatarPath, userIdentity, studentNo, major, college, phone
         );

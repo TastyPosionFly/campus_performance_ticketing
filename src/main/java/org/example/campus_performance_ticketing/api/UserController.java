@@ -61,7 +61,7 @@ public class UserController {
     /**
      * 更新个人资料
      */
-    @PutMapping("/profile")
+    @RequestMapping(value = "/profile", method = {RequestMethod.PUT, RequestMethod.POST})
     public ApiResponse<UserInfo> updateProfile(
             HttpServletRequest request,
             @RequestParam(required = false) String nickname,

@@ -115,44 +115,43 @@ Content-Type: application/json
 ### 3. 用户资料更新
 
 路径：`PUT /api/users/profile`
-- 支持头像上传（图片文件或URL）、昵称、学号、专业、手机号等变更
-- 头像自动缩放为统一尺寸
+- 支持头像上传（图片文件）、昵称、学号、专业、手机号等变更
+- 头像自动缩放为统一尺寸（200x200）
+- 更新头像时会自动删除服务器中的旧头像文件
 
-**请求参数（multipart/form-data 或 application/x-www-form-urlencoded）：**
-- nickname
-- avatarFile（图片文件，可选）
-- avatarUrl（图片链接，可选）
-- userIdentity
-- studentNo
-- major
-- college
-- phone
+**请求格式：**`multipart/form-data`
 
-```http
-PUT /api/users/profile
-Content-Type: multipart/form-data
-
-nickname: Bob
-avatarFile: (本地图片文件)
-major: 软件工程
-college: 信息学院
-phone: 132****0001
+**请求参数：**
+```json
+{
+  "nickname": "张三",              // 可选，用户昵称
+  "avatarFile": "(文件)",          // 可选，头像图片文件
+  "userIdentity": 1,              // 可选，用户身份（1=学生，2=教师等）
+  "studentNo": "20260001",        // 可选，学号
+  "major": "软件工程",             // 可选，专业
+  "college": "信息学院",           // 可选，学院
+  "phone": "13800138000"          // 可选，手机号
+}
 ```
-或
-```http
-PUT /api/users/profile
-Content-Type: application/x-www-form-urlencoded
-
-avatarUrl=https://example.com/someavatar.jpg
-```
-
 **响应示例：**
 ```json
 {
-  "success": true,
-  "data": { ... }
+"success": true,
+"data": {
+"id": 123,
+"nickname": "张三",
+"avatar": "http://example.com:8080/app/data/avatar/7b5a9cf3-e91f-4c0e-bc14-c4a28382486d.jpg",
+"userIdentity": 1,
+"studentNo": "20260001",
+"major": "软件工程",
+"college": "信息学院",
+"phone": "13800138000",
+"status": 1
+},
+"message": "操作成功"
 }
 ```
+---
 
 **设计说明**：  
 本接口最大程度提升用户体验，支持灵活头像来源（上传、网络），自动处理图片规格。同时业务全部在 Service 层处理，代码分层清晰，便于安全与扩展说明。
@@ -224,5 +223,3 @@ PUT /api/admin/users/role?openId=openid_002&newRole=ADMIN
 便于前端统一处理，也便于论文接口异常对比说明。
 
 ---
-
-如需更详细字段列表、代码引用或论文撰写模板，请联系后端开发或查阅各接口源码注释。

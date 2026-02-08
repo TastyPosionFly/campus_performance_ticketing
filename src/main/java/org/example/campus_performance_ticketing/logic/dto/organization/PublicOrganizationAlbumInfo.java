@@ -8,5 +8,6 @@ public class PublicOrganizationAlbumInfo {
     private Long id;
     private PublicUserInfo uploader;
     private String photoUrl;
+    private String description;
     private String uploadTime;
 }

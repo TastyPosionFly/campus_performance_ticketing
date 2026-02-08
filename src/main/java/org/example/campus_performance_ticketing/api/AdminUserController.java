@@ -6,6 +6,7 @@ import org.example.campus_performance_ticketing.model.UserInfo;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.servlet.http.HttpServletRequest;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/admin/users")
@@ -24,15 +25,12 @@ public class AdminUserController {
     public ApiResponse<UserInfo> banOrUnban(
             HttpServletRequest request,
             @RequestParam String openId,
-            @RequestParam boolean ban
+            @RequestParam Boolean ban
     ) {
-        // 从拦截器获取当前管理员信息
+        // 从拦截器获取当前管理员角色
         String role = (String) request.getAttribute("role");
 
-        if (!"ADMIN".equalsIgnoreCase(role) && !"SUPER_ADMIN".equalsIgnoreCase(role)) {
-            return ApiResponse.fail("没有权限操作");
-        }
-
+        // 权限校验在 Service 层完成
         return userService.banOrUnbanUser(openId, ban, role);
     }
 
@@ -40,17 +38,12 @@ public class AdminUserController {
      * 查询用户列表（ADMIN, SUPER_ADMIN）
      */
     @GetMapping("/list")
-    public ApiResponse<Iterable<UserInfo>> listUsers(
-            HttpServletRequest request
-            ) {
-        // 从拦截器获取当前管理员信息
+    public ApiResponse<Iterable<UserInfo>> listUsers(HttpServletRequest request) {
+        // 从拦截器获取当前管理员角色
         String role = (String) request.getAttribute("role");
 
-        if (!"ADMIN".equalsIgnoreCase(role) && !"SUPER_ADMIN".equalsIgnoreCase(role)) {
-            return ApiResponse.fail("没有权限操作");
-        }
-
-        return userService.getAllUsers();
+        // 权限校验在 Service 层完成
+        return userService.getAllUsers(role);
     }
 
     /**
@@ -62,14 +55,40 @@ public class AdminUserController {
             @RequestParam String openId,
             @RequestParam String newRole
     ) {
-        // 从拦截器获取当前管理员信息
+        // 从拦截器获取当前管理员角色
         String role = (String) request.getAttribute("role");
 
-        if (!"SUPER_ADMIN".equalsIgnoreCase(role)) {
-            return ApiResponse.fail("没有权限操作");
-        }
-
+        // 权限校验在 Service 层完成
         return userService.updateUserRole(openId, newRole, role);
     }
 
+    /**
+     * 根据用户名查询用户（精确匹配）
+     */
+    @GetMapping("/search")
+    public ApiResponse<?> getUserByNickname(
+            HttpServletRequest request,
+            @RequestParam String nickname
+    ) {
+        // 从拦截器获取当前管理员角色
+        String role = (String) request.getAttribute("role");
+
+        // 权限校验在 Service 层完成
+        return userService.findUserByNickname(nickname, role);
+    }
+
+    /**
+     * 根据用户名模糊搜索用户列表
+     */
+    @GetMapping("/search/fuzzy")
+    public ApiResponse<List<UserInfo>> searchUsers(
+            HttpServletRequest request,
+            @RequestParam String keyword
+    ) {
+        // 从拦截器获取当前管理员角色
+        String role = (String) request.getAttribute("role");
+
+        // 权限校验在 Service 层完成
+        return userService.searchUsersByNickname(keyword, role);
+    }
 }

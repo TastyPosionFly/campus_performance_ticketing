@@ -198,6 +198,7 @@ public class OrganizationAlbumService {
 
                 dto.setId(album.getId());
                 dto.setPhotoUrl(AvatarUrlUtil.buildAvatarUrl(album.getPhotoUrl(), fileBaseUrl));
+                dto.setDescription(album.getDescription());
                 dto.setUploadTime(String.valueOf(album.getUploadTime()));
 
                 // uploader

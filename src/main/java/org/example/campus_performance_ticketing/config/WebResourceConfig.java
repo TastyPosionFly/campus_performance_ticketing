@@ -31,11 +31,10 @@ public class WebResourceConfig implements WebMvcConfigurer {
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
-        // ✅ 改成 /app/data 开头
         registry.addResourceHandler("/app/data/avatar/**")
                 .addResourceLocations("file:" + ensureEndsWithSlash(userAvatarDir));
 
-        registry.addResourceHandler("/app/data/org_avatar/**")
+        registry.addResourceHandler("/app/data/org-avatar/**")
                 .addResourceLocations("file:" + ensureEndsWithSlash(orgAvatarDir));
 
         registry.addResourceHandler("/app/data/org_album/**")
@@ -51,6 +50,27 @@ public class WebResourceConfig implements WebMvcConfigurer {
                 .addResourceLocations("file:" + ensureEndsWithSlash(staffRealDir));
 
         registry.addResourceHandler("/app/data/ticket_photo/**")
+                .addResourceLocations("file:" + ensureEndsWithSlash(ticketUploadDir));
+
+        registry.addResourceHandler("/data/avatar/**")
+                .addResourceLocations("file:" + ensureEndsWithSlash(userAvatarDir));
+
+        registry.addResourceHandler("/data/org-avatar/**")
+                .addResourceLocations("file:" + ensureEndsWithSlash(orgAvatarDir));
+
+        registry.addResourceHandler("/data/org_album/**")
+                .addResourceLocations("file:" + ensureEndsWithSlash(orgAlbumDir));
+
+        registry.addResourceHandler("/data/venue_album/**")
+                .addResourceLocations("file:" + ensureEndsWithSlash(venueAlbumDir));
+
+        registry.addResourceHandler("/data/performance_post/**")
+                .addResourceLocations("file:" + ensureEndsWithSlash(posterRealDir));
+
+        registry.addResourceHandler("/data/staff_photo/**")
+                .addResourceLocations("file:" + ensureEndsWithSlash(staffRealDir));
+
+        registry.addResourceHandler("/data/ticket_photo/**")
                 .addResourceLocations("file:" + ensureEndsWithSlash(ticketUploadDir));
     }
 

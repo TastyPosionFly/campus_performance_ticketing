@@ -224,6 +224,11 @@ public class OrganizationMemberService {
             Iterable<OrganizationMember> members = organizationMemberRepository.findByOrganizationId(orgId);
             List<OrganizationMemberPublicDto> dtoList = new ArrayList<>();
             for (OrganizationMember member : members) {
+
+                if (member.getStatus() != 1) { // 仅返回正常状态的成员
+                    continue;
+                }
+
                 PublicUserInfo publicUser = new PublicUserInfo(
                         member.getUser().getNickname(),
                         AvatarUrlUtil.buildAvatarUrl(member.getUser().getAvatar(), baseUrl),
@@ -259,6 +264,11 @@ public class OrganizationMemberService {
             Iterable<OrganizationMember> members = organizationMemberRepository.findByUserId(user.getId());
             List<UserOrganizationMemberDto> dtoList = new ArrayList<>();
             for (OrganizationMember member : members) {
+
+                if (member.getStatus() != 1) { // 仅返回正常状态的组织成员关系
+                    continue;
+                }
+
                 OrganizationInfo org = member.getOrganization();
 
                 PublicUserInfo leader = new PublicUserInfo();

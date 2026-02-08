@@ -3,17 +3,11 @@ package org.example.campus_performance_ticketing.logic;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
-import org.example.campus_performance_ticketing.dao.ApplicationRepository;
-import org.example.campus_performance_ticketing.dao.OrganizationAlbumRepository;
-import org.example.campus_performance_ticketing.dao.OrganizationInfoRepository;
-import org.example.campus_performance_ticketing.dao.UserRepository;
+import org.example.campus_performance_ticketing.dao.*;
 import org.example.campus_performance_ticketing.logic.dto.ApiResponse;
 import org.example.campus_performance_ticketing.logic.dto.organization.PublicOrganizationInfo;
 import org.example.campus_performance_ticketing.logic.dto.user.PublicUserInfo;
-import org.example.campus_performance_ticketing.model.Application;
-import org.example.campus_performance_ticketing.model.OrganizationAlbum;
-import org.example.campus_performance_ticketing.model.OrganizationInfo;
-import org.example.campus_performance_ticketing.model.UserInfo;
+import org.example.campus_performance_ticketing.model.*;
 import org.example.campus_performance_ticketing.util.AvatarUrlUtil;
 import org.example.campus_performance_ticketing.util.FileUtil;
 import org.springframework.beans.factory.annotation.Value;
@@ -25,6 +19,7 @@ import org.springframework.validation.annotation.Validated;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.logging.Logger;
 
 /**
@@ -39,6 +34,7 @@ public class OrganizationService {
     private final UserRepository userRepository;
     private final ApplicationRepository applicationRepository;
     private final OrganizationAlbumRepository organizationAlbumRepository;
+    private final OrganizationMemberRepository organizationMemberRepository;
 
     private static final Logger logger = Logger.getLogger(OrganizationService.class.getName());
 
@@ -85,26 +81,97 @@ public class OrganizationService {
     /**
      * 更换组织首领
      */
-    @Transactional
     public ApiResponse<Void> changeOrganizationLeader(@NotBlank String openId,
                                                       @NotNull Long orgId,
                                                       @NotNull Long newLeaderId) {
 
         try {
-            UserInfo oldLeader = userRepository.findByOpenid(openId)
+            // operator = 发起更换操作的用户（可能是当前首领，也可能是 ADMIN/SUPER_ADMIN）
+            UserInfo operator = userRepository.findByOpenid(openId)
                     .orElseThrow(() -> new IllegalArgumentException("用户不存在"));
 
             OrganizationInfo organization = organizationInfoRepository.findById(orgId)
                     .orElseThrow(() -> new IllegalArgumentException("组织不存在"));
 
-            if (oldLeader != organization.getLeader() && !"ADMIN".equals(oldLeader.getRole()) && !"SUPER_ADMIN".equals(oldLeader.getRole())) {
+            Long currentLeaderId = organization.getLeader() == null ? null : organization.getLeader().getId();
+
+            // 权限校验：必须是当前首领或管理员/超级管理员
+            boolean operatorIsLeader = (currentLeaderId != null && operator.getId().equals(currentLeaderId));
+            boolean operatorIsAdmin = "ADMIN".equals(operator.getRole()) || "SUPER_ADMIN".equals(operator.getRole());
+            if (!operatorIsLeader && !operatorIsAdmin) {
                 return ApiResponse.fail("只有当前首领或管理员才能更换组织首领");
             }
 
             UserInfo newLeader = userRepository.findById(newLeaderId)
                     .orElseThrow(() -> new IllegalArgumentException("新首领用户不存在"));
 
-            // 更新组织信息中的首领字段
+            // 如果新首领就是当前首领，直接返回成功（或提示）
+            if (currentLeaderId != null && currentLeaderId.equals(newLeader.getId())) {
+                ApiResponse<Void> resp = ApiResponse.success(null);
+                resp.setMessage("新首领与当前首领相同，无需更换");
+                return resp;
+            }
+
+            // ====== 同步更新 OrganizationMember 表中的信息 ======
+            try {
+                // 如果存在原首领，先把原首领的成员角色调整为 MEMBER（避免覆盖其他管理员设置）
+                if (currentLeaderId != null) {
+                    Optional<OrganizationMember> oldMemberOpt = organizationMemberRepository
+                            .findByOrganizationIdAndUserId(organization.getId(), currentLeaderId);
+                    logger.info("原首领 id=" + currentLeaderId + " 的成员记录存在: " + oldMemberOpt.isPresent());
+                    if (oldMemberOpt.isPresent()) {
+                        OrganizationMember oldMember = oldMemberOpt.get();
+                        if ("LEADER".equals(oldMember.getMemberRole())) {
+                            oldMember.setMemberRole("MEMBER");
+                            organizationMemberRepository.save(oldMember);
+                        }
+                    } else {
+                        // 如果没有成员记录，不强制创建（业务可选），这里只记录日志
+                        logger.info("原首领 id=" + currentLeaderId + " 在 organization_member 中没有记录");
+                    }
+
+                    // 如果操作者是 ADMIN/SUPER_ADMIN（即非组织首领，由管理员替换首领），将原首领的全局权限降为 USER
+                    if (operatorIsAdmin && !operatorIsLeader) {
+                        try {
+                            UserInfo originalLeader = userRepository.findById(currentLeaderId)
+                                    .orElse(null);
+                            if (originalLeader != null) {
+                                originalLeader.setRole("USER");
+                                userRepository.save(originalLeader);
+                                logger.info("已将原首领(id=" + currentLeaderId + ") 的权限降为 USER（由管理员操作）");
+                            } else {
+                                logger.warning("找不到原首领的用户记录 id=" + currentLeaderId);
+                            }
+                        } catch (Exception e) {
+                            // 将原首领权限降级失败，记录但不阻止主流程（视业务可改为抛出异常回滚）
+                            logger.warning("将原首领权限降为 USER 时出错: " + e.getMessage());
+                        }
+                    }
+                }
+
+                // 将新首领的成员角色设置为 LEADER（如果存在则更新，否则创建一条记录）
+                Optional<OrganizationMember> newMemberOpt = organizationMemberRepository
+                        .findByOrganizationIdAndUserId(organization.getId(), newLeader.getId());
+                logger.info("新首领 " + newLeader.getNickname() + " 的成员记录存在: " + newMemberOpt.isPresent());
+                if (newMemberOpt.isPresent()) {
+                    OrganizationMember newMember = newMemberOpt.get();
+                    newMember.setMemberRole("LEADER");
+                    newMember.setStatus(1); // 确保为在组织中的状态
+                    organizationMemberRepository.save(newMember);
+                } else {
+                    OrganizationMember newMember = new OrganizationMember();
+                    newMember.setOrganization(organization);
+                    newMember.setUser(newLeader);
+                    newMember.setMemberRole("LEADER");
+                    newMember.setStatus(1); // 在组织中
+                    organizationMemberRepository.save(newMember);
+                }
+            } catch (Exception e) {
+                // 成员表更新失败不应影响已更新的组织首领字段，但应记录错误
+                logger.warning("更新组织成员表以同步首领变更时出错: " + e.getMessage());
+            }
+
+            // 最后更新组织信息中的首领字段
             organization.setLeader(newLeader);
             organizationInfoRepository.save(organization);
 
@@ -116,6 +183,7 @@ public class OrganizationService {
             return ApiResponse.fail("更换组织首领失败: " + e.getMessage());
         }
     }
+
 
     /**
      * 查看所有组织
@@ -144,6 +212,7 @@ public class OrganizationService {
                 publicOrganizationInfo.setId(org.getId());
                 publicOrganizationInfo.setName(org.getName());
                 publicOrganizationInfo.setDescription(org.getDescription());
+                publicOrganizationInfo.setStatus(org.getStatus());
                 publicOrganizationInfo.setAvatarUrl(AvatarUrlUtil.buildAvatarUrl(org.getAvatarUrl(), baseUrl));
                 publicOrganizationInfo.setLeader(leader);
 
@@ -186,6 +255,7 @@ public class OrganizationService {
             publicOrganizationInfo.setId(org.getId());
             publicOrganizationInfo.setName(org.getName());
             publicOrganizationInfo.setDescription(org.getDescription());
+            publicOrganizationInfo.setStatus(org.getStatus());
             publicOrganizationInfo.setAvatarUrl(AvatarUrlUtil.buildAvatarUrl(org.getAvatarUrl(), baseUrl));
             publicOrganizationInfo.setLeader(leader);
 

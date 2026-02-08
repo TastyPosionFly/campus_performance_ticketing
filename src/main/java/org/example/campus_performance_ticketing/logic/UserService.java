@@ -20,14 +20,12 @@ import org.slf4j.LoggerFactory;
 import org.springframework.validation.annotation.Validated;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
-
-
 
 @Service
 @Validated
 @RequiredArgsConstructor
-
 public class UserService {
 
     private final UserRepository userRepository;
@@ -38,6 +36,19 @@ public class UserService {
     @Value("${file.base.url}")
     private String baseUrl;
 
+    /**
+     * 检查是否为管理员
+     */
+    private boolean isAdmin(String role) {
+        return "ADMIN".equalsIgnoreCase(role) || "SUPER_ADMIN".equalsIgnoreCase(role);
+    }
+
+    /**
+     * 检查是否为超级管理员
+     */
+    private boolean isSuperAdmin(String role) {
+        return "SUPER_ADMIN".equalsIgnoreCase(role);
+    }
 
     /**
      * 微信登录 / 自动注册
@@ -100,7 +111,7 @@ public class UserService {
 
         } catch (Exception e) {
             logger.error("loginOrRegister failed for openid={}", openid, e);
-            return ApiResponse.fail("内部错误，登录失败");
+            return ApiResponse.fail("内���错误，登录失败");
         }
     }
 
@@ -210,16 +221,15 @@ public class UserService {
     }
 
     /**
-     * 封禁 / 解封用户
-     * 仅管理员操作 —> 建议从安全上下文获取角色，而不是信任传入的参数
+     * 封禁 / 解封用户（含权限校验）
      */
     @Transactional
     public ApiResponse<UserInfo> banOrUnbanUser(@NotBlank String openId,
-                                                @NotNull boolean ban,
-                                                @NotBlank String role) {
-
+                                                @NotNull Boolean ban,
+                                                @NotBlank String operatorRole) {
         try {
-            if (role == null || (!"ADMIN".equalsIgnoreCase(role) && !"SUPER_ADMIN".equalsIgnoreCase(role))) {
+            // 权限校验：只有管理员可以操作
+            if (!isAdmin(operatorRole)) {
                 return ApiResponse.fail("没有权限操作用户封禁");
             }
 
@@ -229,7 +239,8 @@ public class UserService {
             user.setStatus(ban ? 0 : 1); // 0=封禁, 1=正常
             UserInfo updated = userRepository.save(user);
 
-            // 注意：若系统使用 JWT，需要确保在 token 校验时验证用户状态（或在此引入 token 失效机制）
+            logger.info("用户 {} 被 {} {}，操作者角色：{}", openId, ban ? "封禁" : "解封", updated.getStatus(), operatorRole);
+
             return ApiResponse.success(updated);
 
         } catch (Exception e) {
@@ -238,13 +249,24 @@ public class UserService {
         }
     }
 
-
     /**
-     * 获取数据库中所有用户列表
+     * 获取所有用户列表（含权限校验）
      */
-    public ApiResponse<Iterable<UserInfo>> getAllUsers() {
+    @Transactional(readOnly = true)
+    public ApiResponse<Iterable<UserInfo>> getAllUsers(@NotBlank String operatorRole) {
         try {
+            // 权限校验：只有管理员可以查看用户列表
+            if (!isAdmin(operatorRole)) {
+                return ApiResponse.fail("没有权限查看用户列表");
+            }
+
             Iterable<UserInfo> users = userRepository.findAll();
+
+            // 处理头像URL
+            users.forEach(user -> {
+                user.setAvatar(AvatarUrlUtil.buildAvatarUrl(user.getAvatar(), baseUrl));
+            });
+
             return ApiResponse.success(users);
         } catch (Exception e) {
             logger.error("getAllUsers failed", e);
@@ -252,60 +274,120 @@ public class UserService {
         }
     }
 
-
     /**
      * 根据角色返回不同层级的用户信息
      */
-    public ApiResponse<?> getMemberUserInfo(@NotBlank String openId,
+    public ApiResponse<?> getMemberUserInfo(@NotNull Long id,
                                             @NotBlank String role) {
-        if ("ADMIN".equalsIgnoreCase(role) || "SUPER_ADMIN".equalsIgnoreCase(role)) {
-            // 管理员返回全部信息
-            UserInfo response = userRepository.findByOpenid(openId)
-                    .orElseThrow(() -> new IllegalArgumentException("用户不存在"));
+        try {
+            if (isAdmin(role)) {
+                // 管理员返回全部信息
+                UserInfo response = userRepository.findById(id)
+                        .orElseThrow(() -> new IllegalArgumentException("用户不存在"));
 
-            response.setAvatar(AvatarUrlUtil.buildAvatarUrl(response.getAvatar(), baseUrl));
+                response.setAvatar(AvatarUrlUtil.buildAvatarUrl(response.getAvatar(), baseUrl));
 
-            return ApiResponse.success(response);
-        } else {
-            // 普通用户返回公开信息
-            Optional<PublicUserInfo> publicInfoOpt = userRepository.findPublicUserInfoByOpenid(openId);
-            if (publicInfoOpt.isPresent()) {
-                PublicUserInfo info = publicInfoOpt.get();
-
-                info.setAvatar(AvatarUrlUtil.buildAvatarUrl(info.getAvatar(), baseUrl));
-
-                return ApiResponse.success(info);
+                return ApiResponse.success(response);
             } else {
-                return ApiResponse.fail("用户不存在");
+                // 普通用户返回公开信息
+                Optional<PublicUserInfo> publicInfoOpt = userRepository.findPublicUserInfoById(id);
+                if (publicInfoOpt.isPresent()) {
+                    PublicUserInfo info = publicInfoOpt.get();
+                    info.setAvatar(AvatarUrlUtil.buildAvatarUrl(info.getAvatar(), baseUrl));
+                    return ApiResponse.success(info);
+                } else {
+                    return ApiResponse.fail("用户不存在");
+                }
             }
+        } catch (Exception e) {
+            logger.error("getMemberUserInfo failed for openId={}", id, e);
+            return ApiResponse.fail("查询用户信息失败");
         }
     }
 
     /**
-     * SUPER_ADMIN 修改用户角色
+     * 修改用户角色（含权限校验）
      */
+    @Transactional
     public ApiResponse<UserInfo> updateUserRole(@NotBlank String openId,
                                                 @NotBlank String newRole,
                                                 @NotBlank String operatorRole) {
-        if (!"SUPER_ADMIN".equalsIgnoreCase(operatorRole)) {
-            return ApiResponse.fail("没有权限修改用户角色");
-        }
-
-        // 角色白名单校验
-        if (!isValidRole(newRole)) {
-            return ApiResponse.fail("角色参数不合法，只能为 USER、VENUE_ADMIN、ADMIN、SUPER_ADMIN");
-        }
-
         try {
+            // 权限校验：只有超级管理员可以修改角色
+            if (!isSuperAdmin(operatorRole)) {
+                return ApiResponse.fail("没有权限修改用户角色");
+            }
+
+            // 角色白名单校验
+            if (!isValidRole(newRole)) {
+                return ApiResponse.fail("角色参数不合法，只能为 USER、VENUE_ADMIN、ADMIN、SUPER_ADMIN");
+            }
+
             UserInfo user = userRepository.findByOpenid(openId)
                     .orElseThrow(() -> new RuntimeException("用户不存在"));
 
+            String oldRole = user.getRole();
             user.setRole(newRole);
             UserInfo updated = userRepository.save(user);
+
+            logger.info("用户 {} 角色从 {} 变更为 {}，操作者角色：{}", openId, oldRole, newRole, operatorRole);
+
             return ApiResponse.success(updated);
         } catch (Exception e) {
             logger.error("updateUserRole failed for openId={}, newRole={}", openId, newRole, e);
             return ApiResponse.fail("修改用户角色失败");
+        }
+    }
+
+    /**
+     * 根据用户名精确查询用户（含权限校验）
+     */
+    @Transactional(readOnly = true)
+    public ApiResponse<?> findUserByNickname(@NotBlank String nickname, @NotBlank String operatorRole) {
+        try {
+            // 权限校验：只有管理员可以查询用户
+            if (!isAdmin(operatorRole)) {
+                return ApiResponse.fail("没有权限查询用户信息");
+            }
+
+            Optional<UserInfo> userOpt = userRepository.findByNickname(nickname);
+
+            if (userOpt.isEmpty()) {
+                return ApiResponse.fail("用户不存在");
+            }
+
+            UserInfo user = userOpt.get();
+            user.setAvatar(AvatarUrlUtil.buildAvatarUrl(user.getAvatar(), baseUrl));
+
+            return ApiResponse.success(user);
+        } catch (Exception e) {
+            logger.error("findUserByNickname failed for nickname={}", nickname, e);
+            return ApiResponse.fail("查询用户失败");
+        }
+    }
+
+    /**
+     * 根据用户名模糊搜索用户列表（含权限校验）
+     */
+    @Transactional(readOnly = true)
+    public ApiResponse<List<UserInfo>> searchUsersByNickname(@NotBlank String keyword, @NotBlank String operatorRole) {
+        try {
+            // 权限校验：只有管理员可以搜索用户列表
+            if (!isAdmin(operatorRole)) {
+                return ApiResponse.fail("没有权限搜索用户");
+            }
+
+            List<UserInfo> users = userRepository.findByNicknameContaining(keyword);
+
+            // 处理头像URL
+            users.forEach(user -> {
+                user.setAvatar(AvatarUrlUtil.buildAvatarUrl(user.getAvatar(), baseUrl));
+            });
+
+            return ApiResponse.success(users);
+        } catch (Exception e) {
+            logger.error("searchUsersByNickname failed for keyword={}", keyword, e);
+            return ApiResponse.fail("搜索用户失败");
         }
     }
 
@@ -316,9 +398,12 @@ public class UserService {
         USER, VENUE_ADMIN, ADMIN, SUPER_ADMIN
     }
 
+    /**
+     * 角色白名单校验
+     */
     private static boolean isValidRole(String role) {
         try {
-            UserRoleEnum.valueOf(role); // 若role不完全一致会抛异常
+            UserRoleEnum.valueOf(role);
             return true;
         } catch (IllegalArgumentException e) {
             return false;

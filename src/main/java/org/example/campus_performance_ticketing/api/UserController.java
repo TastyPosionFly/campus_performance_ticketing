@@ -51,11 +51,11 @@ public class UserController {
     @GetMapping("/member")
     public ApiResponse<?> getUserInfo(
             HttpServletRequest request,
-            @RequestParam(required = false) String openId
+            @RequestParam(required = false) Long id
     ) {
         String role = (String) request.getAttribute("role");
         // 管理员和普通用户获取到的用户信息不同
-        return userService.getMemberUserInfo(openId, role);
+        return userService.getMemberUserInfo(id, role);
     }
 
     /**

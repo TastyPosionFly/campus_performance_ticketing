@@ -1,6 +1,7 @@
 package org.example.campus_performance_ticketing.dao;
 
 import org.example.campus_performance_ticketing.model.Application;
+import org.example.campus_performance_ticketing.model.UserInfo;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
@@ -63,4 +64,18 @@ public interface ApplicationRepository extends JpaRepository<Application, Long> 
      * @return
      */
     List<Application> findByApplicationTypeAndTargetIdInAndStatus(String applicationType, List<Long> targetIds, Integer status);
+
+    /**
+     * 查找符合条件的申请（用于判断是否存在阻塞性申请）
+     *
+     * @param applicant       申请人实体
+     * @param applicationType 申请类型，例如 "JOIN_ORG"
+     * @param targetId        目标 id（对加入组织来说是 orgId）
+     * @param statuses        要匹配的状态列表（例如 [1,2] 表示 待审核/已通过）
+     * @return 符合条件的申请列表
+     */
+    List<Application> findByApplicantAndApplicationTypeAndTargetIdAndStatusIn(UserInfo applicant,
+                                                                              String applicationType,
+                                                                              Long targetId,
+                                                                              List<Integer> statuses);
 }

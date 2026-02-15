@@ -45,7 +45,7 @@ public class OrganizationAlbumService {
     private String albumUploadDir;
 
     /**
-     * 上传图片 组织 LEADER / MANAGER 成员可上传
+     * 上传图片 组织 LEADER / MANAGER / SUPER_ADMIN 成员可上传
      */
     /**
      * Service 层统一处理：权限校验 + 先入库(占位) + 保存文件/下载URL + 更新入库 + 失败补偿
@@ -114,7 +114,10 @@ public class OrganizationAlbumService {
                 .orElseThrow(() -> new IllegalArgumentException("用户不是该组织成员"));
 
         if (member.getStatus() != 1) throw new IllegalStateException("用户不是该组织有效成员");
-        if (!"LEADER".equalsIgnoreCase(member.getMemberRole()) && !"MANAGER".equalsIgnoreCase(member.getMemberRole())) {
+
+        logger.info("用户 " + user.getNickname() + "，角色: " + user.getRole());
+
+        if (!"LEADER".equalsIgnoreCase(member.getMemberRole()) && !"MANAGER".equalsIgnoreCase(member.getMemberRole()) && !"SUPER_ADMIN".equalsIgnoreCase(user.getRole())) {
             throw new SecurityException("没有权限上传图片");
         }
 
@@ -165,7 +168,7 @@ public class OrganizationAlbumService {
                 return ApiResponse.fail("用户不是该组织有效成员");
             }
 
-            if (!"LEADER".equalsIgnoreCase(member.getMemberRole()) && !"MANAGER".equalsIgnoreCase(member.getMemberRole())) {
+            if (!"LEADER".equalsIgnoreCase(member.getMemberRole()) && !"MANAGER".equalsIgnoreCase(member.getMemberRole()) && !"SUPER_ADMIN".equalsIgnoreCase(user.getRole())) {
                 return ApiResponse.fail("没有权限删除图片");
             }
 

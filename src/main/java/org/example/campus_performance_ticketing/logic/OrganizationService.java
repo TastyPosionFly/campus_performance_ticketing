@@ -229,6 +229,56 @@ public class OrganizationService {
     }
 
 
+
+    /**
+     * 按组织名称模糊搜索
+     */
+    public ApiResponse<List<PublicOrganizationInfo>> searchOrganizationsByName(@NotBlank String keyword) {
+        if (!StringUtils.hasText(keyword)) {
+            return ApiResponse.fail("搜索关键字不能为空");
+        }
+
+        try {
+            String q = keyword.trim();
+
+            // 在 repository 层执行模糊不区分大小写查询，同时排除 status = 2（已解散/不可见）
+            List<OrganizationInfo> matchedOrgs = organizationInfoRepository
+                    .findByNameContainingIgnoreCaseAndStatusNot(q, 2);
+
+            List<PublicOrganizationInfo> results = new ArrayList<>();
+            for (OrganizationInfo org : matchedOrgs) {
+                if (org == null) continue;
+
+                // 构造组织首领的 PublicUserInfo（注意 leader 可能为空，需要防御）
+                PublicUserInfo leader = new PublicUserInfo();
+                if (org.getLeader() != null) {
+                    leader.setNickname(org.getLeader().getNickname());
+                    leader.setAvatar(AvatarUrlUtil.buildAvatarUrl(org.getLeader().getAvatar(), baseUrl));
+                    leader.setMajor(org.getLeader().getMajor());
+                    leader.setCollege(org.getLeader().getCollege());
+                    leader.setStatus(org.getLeader().getStatus());
+                }
+
+                PublicOrganizationInfo publicOrganizationInfo = new PublicOrganizationInfo();
+                publicOrganizationInfo.setId(org.getId());
+                publicOrganizationInfo.setName(org.getName());
+                publicOrganizationInfo.setDescription(org.getDescription());
+                publicOrganizationInfo.setStatus(org.getStatus());
+                publicOrganizationInfo.setAvatarUrl(AvatarUrlUtil.buildAvatarUrl(org.getAvatarUrl(), baseUrl));
+                publicOrganizationInfo.setLeader(leader);
+
+                results.add(publicOrganizationInfo);
+            }
+
+            ApiResponse<List<PublicOrganizationInfo>> resp = ApiResponse.success(results);
+            resp.setMessage("按名称搜索组织成功，匹配数量: " + results.size());
+            return resp;
+        } catch (Exception e) {
+            logger.warning("按名称搜索组织失败: " + e.getMessage());
+            return ApiResponse.fail("按名称搜索组织失败: " + e.getMessage());
+        }
+    }
+
     /**
      * 查看单个组织详情
      */

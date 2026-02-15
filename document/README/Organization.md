@@ -114,6 +114,57 @@ GET /api/organization/all
 **设计说明：**
 - 仅返回活跃组织，便于前端列表展示。
 
+### **3.1 按组织名模糊搜索组织**
+
+`GET /api/organization/search?keyword=音乐`
+
+**请求示例：**
+```
+GET /api/organization/search?keyword=乐队
+```
+
+**返回示例：**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 1,
+      "name": "启明星乐队",
+      "description": "主打摇滚与流行乐",
+      "status": 1,
+      "avatarUrl": "http://example.com/orgs/1.jpg",
+      "leader": {
+        "nickname": "王老师",
+        "avatar": "http://example.com/u/king.jpg",
+        "major": null,
+        "college": null,
+        "status": 1
+      }
+    },
+    {
+      "id": 2,
+      "name": "电子音乐社",
+      "description": "欢迎电子音乐爱好者加入",
+      "status": 1,
+      "avatarUrl": "http://example.com/orgs/2.jpg",
+      "leader": {
+        "nickname": "李同学",
+        "avatar": "http://example.com/u/lee.jpg",
+        "major": "电子工程",
+        "college": "信息学院",
+        "status": 1
+      }
+    }
+  ],
+  "message": "按名称搜索组织成功，匹配数量: 2"
+}
+```
+
+**描述：**
+- 支持根据组织名称的部分关键字进行不区分大小写的模糊搜索，**数据库层实现，效率高**。
+- 返回所有名称包含关键字、且状态为正常（非已解散、非待审核）的组织。
+
 ---
 
 ### 4. 获取指定组织详情

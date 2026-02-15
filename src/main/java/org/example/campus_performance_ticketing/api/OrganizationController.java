@@ -10,6 +10,8 @@ import org.example.campus_performance_ticketing.model.OrganizationAlbum;
 import org.example.campus_performance_ticketing.util.FileUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -42,10 +44,14 @@ public class OrganizationController {
     /**
      * 申请创建组织
      */
-    @PostMapping("/apply")
+    @PostMapping(
+            value = "/apply",
+            produces = "application/json;charset=UTF-8"
+    )
     public ApiResponse<Void> applyCreateOrganization(
             HttpServletRequest request,
-            @RequestPart("body") ApplyOrganizationRequest body,
+            @RequestParam(name = "orgName") String orgName,
+            @RequestParam(name = "orgDescription", required = false) String orgDescription,
             @RequestPart(name = "avatarFile", required = false) MultipartFile avatarFile
     ) {
         String openId = (String) request.getAttribute("openid");
@@ -58,17 +64,11 @@ public class OrganizationController {
             } catch (IOException e) {
                 return ApiResponse.fail("头像上传失败：" + e.getMessage());
             }
-        } else if (body.getAvatarUrl() != null && body.getAvatarUrl().startsWith("http")) {
-            try {
-                avatarPath = FileUtil.saveAvatarFromUrl(body.getAvatarUrl(), safeDir, null);
-            } catch (IOException e) {
-                return ApiResponse.fail("头像处理失败：" + e.getMessage());
-            }
         }
         return organizationService.applyCreateOrganization(
                 openId,
-                body.getOrgName(),
-                body.getOrgDescription(),
+                orgName,
+                orgDescription,
                 avatarPath
         );
     }
@@ -92,6 +92,17 @@ public class OrganizationController {
     @GetMapping("/all")
     public ApiResponse<List<PublicOrganizationInfo>> getAllOrganizations() {
         return organizationService.getAllOrganizations();
+    }
+
+    /**
+     * 按组织名称模糊搜索（数据库层实现）
+     * 示例调用: GET /api/organization/search?keyword=音乐
+     */
+    @GetMapping("/search")
+    public ApiResponse<List<PublicOrganizationInfo>> searchOrganizationsByName(
+            @RequestParam("keyword") String keyword
+    ) {
+        return organizationService.searchOrganizationsByName(keyword);
     }
 
     /**
@@ -197,13 +208,20 @@ public class OrganizationController {
      * - 方案2: 传 organizationId + photoFile (仅文件上传)
      * - organizationId 必须
      */
-    @PostMapping("/album/upload")
+    @PostMapping(
+            value = "/album/upload",
+            produces = "application/json;charset=UTF-8"
+    )
     public ApiResponse<Void> uploadAlbumPhoto(
             HttpServletRequest request,
-            @RequestPart("body") UploadAlbumPhotoRequest body,
+            @RequestParam("organizationId") Long organizationId,
+            @RequestParam(name = "description") String description,
             @RequestPart(name = "photoFile", required = false) MultipartFile photoFile
     ) {
         String openId = (String) request.getAttribute("openid");
+        UploadAlbumPhotoRequest body = new UploadAlbumPhotoRequest();
+        body.setOrganizationId(organizationId);
+        body.setDescription(description);
         return organizationAlbumService.uploadAlbumPhoto(openId, body, photoFile);
     }
 

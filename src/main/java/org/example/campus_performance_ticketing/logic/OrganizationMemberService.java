@@ -65,6 +65,14 @@ public class OrganizationMemberService {
                 return ApiResponse.fail("你已经是该组织的成员，无需重复申请");
             }
 
+            List<Integer> blockingStatuses = List.of(1, 2); // 1(待审核)、2(已通过) 将阻止重复申请
+            List<Application> conflictApps = applicationRepository
+                    .findByApplicantAndApplicationTypeAndTargetIdAndStatusIn(user, "JOIN_ORG", orgId, blockingStatuses);
+
+            if (conflictApps != null && !conflictApps.isEmpty()) {
+                return ApiResponse.fail("您已对该组织提交过申请（待处理或已通过），暂不可重复申请");
+            }
+
             ObjectMapper om = new ObjectMapper();
             ObjectNode node = om.createObjectNode();
             node.put("userName", user.getNickname());

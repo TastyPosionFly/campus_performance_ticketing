@@ -34,6 +34,23 @@ public interface ApplicationRepository extends JpaRepository<Application, Long> 
     List<Application> findByApplicantIdAndApplicationTypeOrderByApplyTimeDesc(Long applicantId, String applicationType);
 
     /**
+     * 根据申请人ID、申请类型和状态查询该用户的申请记录，按申请时间倒序排列
+     * @param applicantId
+     * @param applicationType
+     * @param status
+     * @return
+     */
+    List<Application> findByApplicantIdAndApplicationTypeAndStatusOrderByApplyTimeDesc (Long applicantId, String applicationType, Integer status);
+
+    /**
+     * 根据申请人ID和状态查询该用户的申请记录，按申请时间倒序排列
+     * @param applicantId
+     * @param status
+     * @return
+     */
+    List<Application> findByApplicantIdAndStatusOrderByApplyTimeDesc (Long applicantId, Integer status);
+
+    /**
      * 根据申请类型查询申请记录
      * @param applicationType
      * @return

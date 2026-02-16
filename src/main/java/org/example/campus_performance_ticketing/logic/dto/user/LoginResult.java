@@ -17,4 +17,5 @@ public class LoginResult {
     private String avatar;
     private String role;
     private int state;
+    private boolean isOrgAdmin;
 }

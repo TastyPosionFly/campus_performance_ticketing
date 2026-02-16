@@ -428,6 +428,56 @@ POST /api/organization/album/list
   ]
 }
 ```
+---
+# 15. 更新组织信息
+
+```
+PUT /api/organization/{orgId}
+```
+
+Content-Type：multipart/form-data
+
+**请求参数（multipart / 路径）：**
+- 路径参数
+    - `orgId`: Long （必填）
+- 表单字段（multipart/form-data）
+    - `name`: string （可选）
+    - `description`: string （可选）
+    - `avatar`: file （可选，字段名为 `avatar`）
+
+**示例请求（curl）：**
+```bash
+curl -X PUT "https://your-host/api/organization/123" \
+  -H "Authorization: Bearer <JWT_TOKEN>" \
+  -F "name=新组织名称" \
+  -F "description=新的组织简介" \
+  -F "avatar=@/path/to/avatar.jpg"
+```
+
+**成功响应示例：**
+```json
+{
+  "success": true,
+  "message": "组织信息更新成功"
+}
+```
+
+**常见失败示例：**
+- 权限不足（非组织首领且非管理员）：
+```json
+{ "success": false, "message": "权限不足：只有组织首领或管理员可以修改组织信息" }
+```
+- 组织/用户不存在或参数错误：
+```json
+{ "success": false, "message": "组织不存在" }
+```
+
+**设计说明（简短）：**
+- 权限：仅组织首领（LEADER）或管理员（ADMIN / SUPER_ADMIN）可调用；组织首领不能通过此接口修改组织 `status`（状态修改请使用单独管理员接口）。
+- 文件处理：头像使用 `FileUtil.saveAvatar(...)` 保存到 `org.avatar.upload-dir`，数据库保存成功后再删除旧头像（`FileUtil.deletePhysicalFile`），若 DB 保存失败需回滚补偿（删除新文件）。
+- 实现要点：先保存文件再持久化到 DB；在更新前缓存 `oldAvatar`，DB 成功后删除旧文件；对 avatar 做格式/大小校验，避免非法上传。
+- openid：从鉴权拦截器注入（HttpServletRequest attribute `openid`），Controller 传入 Service 以做权限校验。
+
 
 ---
 

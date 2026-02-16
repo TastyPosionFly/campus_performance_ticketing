@@ -22,6 +22,13 @@ public interface OrganizationInfoRepository extends JpaRepository<OrganizationIn
     void deleteByStatus(int status);
 
     /**
+     * 根据负责人 ID 检查是否存在组织
+     * @param leaderId
+     * @return
+     */
+    boolean existsByLeaderId(Long leaderId);
+
+    /**
      * 根据负责人ID查找组织列表
      * @param leaderId
      * @return

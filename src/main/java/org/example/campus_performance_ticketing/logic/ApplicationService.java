@@ -217,15 +217,22 @@ public class ApplicationService {
      */
     @Transactional(readOnly = true)
     public ApiResponse<List<ApplicationPublicDto>> getUserApplications(@NotBlank String openId,
-                                                                       String applicationType) {
+                                                                       String applicationType,
+                                                                       Integer status) {
         try {
             UserInfo user = userRepository.findByOpenid(openId)
                     .orElseThrow(() -> new IllegalArgumentException("用户不存在"));
 
             List<Application> applications;
-            if (applicationType != null) {
+            if (applicationType != null && status != null) {
+                applications = applicationRepository
+                        .findByApplicantIdAndApplicationTypeAndStatusOrderByApplyTimeDesc(user.getId(), applicationType, status);
+            } else if (applicationType != null) {
                 applications = applicationRepository
                         .findByApplicantIdAndApplicationTypeOrderByApplyTimeDesc(user.getId(), applicationType);
+            } else if (status != null) {
+                applications = applicationRepository
+                        .findByApplicantIdAndStatusOrderByApplyTimeDesc(user.getId(), status);
             } else {
                 applications = applicationRepository.findByApplicantIdOrderByApplyTimeDesc(user.getId());
             }

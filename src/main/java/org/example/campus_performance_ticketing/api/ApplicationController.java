@@ -32,10 +32,11 @@ public class ApplicationController {
     @GetMapping("/my-applications")
     public ApiResponse<List<ApplicationPublicDto>> getUserApplications(
             HttpServletRequest request,
-            @RequestParam(required = false) String applicationType
+            @RequestParam(required = false) String applicationType,
+            @RequestParam(required = false) Integer status
     ) {
         String openId = (String) request.getAttribute("openid");
-        return applicationService.getUserApplications(openId, applicationType);
+        return applicationService.getUserApplications(openId, applicationType, status);
     }
 
     /**

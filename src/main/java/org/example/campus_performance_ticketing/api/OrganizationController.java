@@ -73,6 +73,31 @@ public class OrganizationController {
         );
     }
 
+
+    /**
+     * 更新组织信息（组织首领或管理员可操作）
+     * - 组织首领可以修改名称、简介和上传头像（不能修改 status）
+     * - 管理员可同时修改名称、简介、头像；但状态修改应走单独管理员接口（本接口不处理 status）
+     *
+     * 请求示例（multipart/form-data）:
+     * PUT /api/organization/123
+     * form-data:
+     *   name: 新组织名
+     *   description: 组织简介
+     *   avatar: (文件)
+     */
+    @PostMapping(value = "/{orgId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<Void> updateOrganizationInfo(
+            HttpServletRequest request,
+            @PathVariable("orgId") Long orgId,
+            @RequestParam(value = "name", required = false) String name,
+            @RequestParam(value = "description", required = false) String description,
+            @RequestPart(value = "avatar", required = false) MultipartFile avatarFile
+    ) {
+        String openId = (String) request.getAttribute("openid");
+        return organizationService.updateOrganizationInfo(openId, orgId, name, description, avatarFile);
+    }
+
     /**
      * 更换组织首领
      */

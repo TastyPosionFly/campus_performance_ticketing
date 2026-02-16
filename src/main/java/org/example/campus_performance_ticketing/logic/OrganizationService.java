@@ -16,7 +16,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -41,6 +43,8 @@ public class OrganizationService {
     @Value ("${file.base.url}")
     private String baseUrl;
 
+    @Value("${org.avatar.upload-dir}")
+    private String orgAvatarDir;
 
     /**
      * 申请创建组织
@@ -75,6 +79,95 @@ public class OrganizationService {
         } catch (Exception e) {
             logger.warning("申请创建组织失败: " + e.getMessage());
             return ApiResponse.fail("申请创建组织失败: " + e.getMessage());
+        }
+    }
+
+    @Transactional
+    public ApiResponse<Void> updateOrganizationInfo(@NotBlank String openId,
+                                                    @NotNull Long orgId,
+                                                    String name,
+                                                    String description,
+                                                    MultipartFile avatarFile) {
+        try {
+            // 操作者校验
+            UserInfo operator = userRepository.findByOpenid(openId)
+                    .orElseThrow(() -> new IllegalArgumentException("用户不存在"));
+
+            OrganizationInfo organization = organizationInfoRepository.findById(orgId)
+                    .orElseThrow(() -> new IllegalArgumentException("组织不存在"));
+
+            Long currentLeaderId = organization.getLeader() == null ? null : organization.getLeader().getId();
+            boolean operatorIsLeader = (currentLeaderId != null && operator.getId().equals(currentLeaderId));
+            boolean operatorIsAdmin = "ADMIN".equals(operator.getRole()) || "SUPER_ADMIN".equals(operator.getRole());
+            String oldAvatarPath = organization.getAvatarUrl(); // 先记录旧头像路径
+
+            if (!operatorIsLeader && !operatorIsAdmin) {
+                return ApiResponse.fail("权限不足：只有组织首领或管理员可以修改组织信息");
+            }
+
+            boolean changed = false;
+            String newAvatarPath = null; // track new file in case we need to cleanup on failure
+
+            // 更新名称（若传入且不同）
+            if (StringUtils.hasText(name) && !name.equals(organization.getName())) {
+                // 可选：名称唯一性校验
+                organization.setName(name);
+                changed = true;
+            }
+
+            // 更新简介（可能为空字符串也视为更新）
+            if (description != null && !description.equals(organization.getDescription())) {
+                organization.setDescription(description);
+                changed = true;
+            }
+
+            // 处理头像文件上传：使用 FileUtil 保存并获取保存路径
+            if (avatarFile != null && !avatarFile.isEmpty()) {
+                if (orgAvatarDir == null || orgAvatarDir.isBlank()) {
+                    return ApiResponse.fail("服务器未配置组织头像上传目录，无法保存文件");
+                }
+
+                try {
+                    String normalizedDir = FileUtil.normalizeUploadDir(orgAvatarDir);
+                    newAvatarPath = FileUtil.saveAvatar(avatarFile, normalizedDir, null); // 返回的是 final path (dir + filename)
+                    if (newAvatarPath == null) {
+                        return ApiResponse.fail("保存头像失败");
+                    }
+                    // 设到组织实体上（暂未删除旧文件，等 DB 保存成功后再删除；如果删除失败记录日志）
+                    organization.setAvatarUrl(newAvatarPath);
+                    changed = true;
+                } catch (IOException e) {
+                    logger.warning("保存组织头像失败: " + e.getMessage());
+                    return ApiResponse.fail("保存组织头像失败: " + e.getMessage());
+                }
+            }
+
+            if (changed) {
+                try {
+                    organizationInfoRepository.save(organization);
+                    // DB 保存成功后再删除旧头像文件（如果有且新旧路径不同）
+                    if (oldAvatarPath != null && !oldAvatarPath.isBlank() && !oldAvatarPath.equals(newAvatarPath)) {
+                        FileUtil.deletePhysicalFile(oldAvatarPath);
+                    }
+                } catch (Exception e) {
+                    // 如果 DB 保存出错，尝试删除刚刚上传的新文件以避免垃圾文件
+                    if (newAvatarPath != null) {
+                        try {
+                            FileUtil.deletePhysicalFile(newAvatarPath);
+                        } catch (Exception ex) {
+                            logger.warning("回滚时删除新头像文件失败: " + ex.getMessage());
+                        }
+                    }
+                    throw e; // 继续上抛到外层统一处理
+                }
+            }
+
+            ApiResponse<Void> resp = ApiResponse.success(null);
+            resp.setMessage("组织信息更新成功");
+            return resp;
+        } catch (Exception e) {
+            logger.warning("更新组织信息失败: " + e.getMessage());
+            return ApiResponse.fail("更新组织信息失败: " + e.getMessage());
         }
     }
 

@@ -3,6 +3,7 @@ package org.example.campus_performance_ticketing.logic;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
+import org.example.campus_performance_ticketing.dao.OrganizationInfoRepository;
 import org.example.campus_performance_ticketing.dao.UserRepository;
 import org.example.campus_performance_ticketing.logic.dto.ApiResponse;
 import org.example.campus_performance_ticketing.logic.dto.user.LoginResult;
@@ -29,6 +30,7 @@ import java.util.Optional;
 public class UserService {
 
     private final UserRepository userRepository;
+    private final OrganizationInfoRepository organizationInfoRepository;
     private final JwtTokenUtil jwtTokenUtil;
 
     private static final Logger logger = LoggerFactory.getLogger(UserService.class);
@@ -104,7 +106,8 @@ public class UserService {
                     user.getNickname(),
                     user.getAvatar(),
                     user.getRole(),
-                    user.getStatus()
+                    user.getStatus(),
+                    organizationInfoRepository.existsByLeaderId(user.getId())
             );
 
             return ApiResponse.successWithToken(result, token);

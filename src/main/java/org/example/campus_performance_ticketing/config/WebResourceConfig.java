@@ -55,7 +55,7 @@ public class WebResourceConfig implements WebMvcConfigurer {
         registry.addResourceHandler("/data/avatar/**")
                 .addResourceLocations("file:" + ensureEndsWithSlash(userAvatarDir));
 
-        registry.addResourceHandler("/data/org-avatar/**")
+        registry.addResourceHandler("/data/org_avatar/**")
                 .addResourceLocations("file:" + ensureEndsWithSlash(orgAvatarDir));
 
         registry.addResourceHandler("/data/org_album/**")

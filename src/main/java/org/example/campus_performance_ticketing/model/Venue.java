@@ -55,7 +55,12 @@ public class Venue {
     @Column(columnDefinition = "int unsigned default 0")
     private Integer capacity;
 
-    /** 场地类型 */
+    /** 场地类型
+     *  1 - 剧场
+     *  2 - 礼堂
+     *  3 - 多功能厅
+     *  4 - 户外广场
+     * */
     @Column(columnDefinition = "tinyint unsigned default 1")
     private Integer type;
 
@@ -63,7 +68,7 @@ public class Venue {
     @Column(name = "equipment_info", columnDefinition = "json")
     private String equipmentInfo;
 
-    /** 场地状态 */
+    /** 场地状态(1:正常, 0:维护, 2:停用) */
     @Column(columnDefinition = "tinyint unsigned default 1")
     private Integer status;
 

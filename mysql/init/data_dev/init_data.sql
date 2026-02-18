@@ -55,8 +55,8 @@ VALUES
         '主校区大礼堂',
         '适合举办大型晚会、讲座和毕业典礼，拥有专业舞台和后台休息室。',
         '主校区 A栋 101',
-        '/data/venue/monalisa-500x500.jpg',
-        '["/data/venue/monalisa-500x500.jpg", "/data/venue/monalisa-500x500.jpg"]', -- 模拟多张图
+        '/data/venue_album/monalisa-500x500.jpg',
+        '["/data/venue_album/monalisa-500x500.jpg", "/data/venue_album/monalisa-500x500.jpg"]', -- 模拟多张图
         1200,
         2, -- 类型：剧场/礼堂
         '{"sound": "JBL 7.1专业音响", "lighting": "全套舞台灯光", "projector": true, "wifi": true, "mic_count": 8}',
@@ -69,8 +69,8 @@ VALUES
         '图文信息中心',
         '配备先进投影设备和舒适座椅，适合举办中小型会议和培训。',
         '主校区 图书馆 305',
-        '/data/venue/monalisa-500x500.jpg',
-        '["/data/venue/monalisa-500x500.jpg"]',
+        '/data/venue_album/monalisa-500x500.jpg',
+        '["/data/venue_album/monalisa-500x500.jpg"]',
         50,
         1, -- 类型：会议室
         '{"sound": "普通会议音箱", "lighting": "普通照明", "projector": true, "wifi": true, "whiteboard": true}',
@@ -83,7 +83,7 @@ VALUES
         '北欧草坪',
         '宽敞的户外草坪，适合举办音乐节、户外电影放映和社交活动。',
         '北校区 中心草坪',
-        '/data/venue/monalisa-500x500.jpg',
+        '/data/venue_album/monalisa-500x500.jpg',
         NULL, -- 无详情图
         3000,
         3, -- 类型：户外场地

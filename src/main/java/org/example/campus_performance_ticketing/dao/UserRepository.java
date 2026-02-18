@@ -28,9 +28,20 @@ public interface UserRepository
     Optional<UserInfo> findByNickname(String nickname);
 
     /**
+     * 根据用户名模糊查询用户（同时匹配角色）
+     */
+    List<UserInfo> findByNicknameContainingAndRole(String nickname, String role);
+
+    /**
      * 根据用户名模糊查询用户列表
      */
     List<UserInfo> findByNicknameContaining(String nickname);
+
+    // 分页版模糊查询
+    org.springframework.data.domain.Page<UserInfo> findByNicknameContaining(String nickname, org.springframework.data.domain.Pageable pageable);
+
+    // 分页版模糊查询并按角色过滤
+    org.springframework.data.domain.Page<UserInfo> findByNicknameContainingAndRole(String nickname, String role, org.springframework.data.domain.Pageable pageable);
 
     /**
      * 只返回公开字段 DTO

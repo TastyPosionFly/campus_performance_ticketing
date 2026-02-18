@@ -22,6 +22,7 @@ import org.example.campus_performance_ticketing.model.Performance;
 import org.example.campus_performance_ticketing.model.UserInfo;
 import org.example.campus_performance_ticketing.util.AvatarUrlUtil;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -53,9 +54,11 @@ public class ApplicationService {
      * 社长：只看 JOIN_ORG
      */
     @Transactional(readOnly = true)
-    public ApiResponse<List<PendingApplicationDto>> listApplications(@NotBlank String openId,
+    public ApiResponse<Page<PendingApplicationDto>> listApplications(@NotBlank String openId,
                                                                      String applicationType,
-                                                                     Integer status) {
+                                                                     Integer status,
+                                                                     int page,
+                                                                     int size) {
         try {
             UserInfo userInfo = userRepository.findByOpenid(openId)
                     .orElseThrow(() -> new IllegalArgumentException("用户不存在"));
@@ -69,101 +72,96 @@ public class ApplicationService {
                 return ApiResponse.fail("权限不足：仅管理员或组织负责人可查看待处理申请");
             }
 
-            List<Application> applicationList;
+            org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(Math.max(0, page), Math.max(1, size));
+            org.springframework.data.domain.Page<Application> pageResult;
 
             if (isAdmin) {
-                // === 管理员逻辑 ===
+                // 管理员：按 applicationType / status / both / all 支持分页
                 if (applicationType != null && status != null) {
-                    applicationList = applicationRepository.findByApplicationTypeAndStatusOrderByApplyTimeDesc(applicationType, status);
+                    pageResult = applicationRepository.findByApplicationTypeAndStatus(applicationType, status, pageable);
                 } else if (applicationType != null) {
-                    applicationList = applicationRepository.findByApplicationTypeOrderByApplyTimeDesc(applicationType);
+                    pageResult = applicationRepository.findByApplicationType(applicationType, pageable);
                 } else if (status != null) {
-                    applicationList = applicationRepository.findByStatusOrderByApplyTimeDesc(status);
+                    pageResult = applicationRepository.findByStatus(status, pageable);
                 } else {
-                    applicationList = applicationRepository.findAllByOrderByApplyTimeDesc();
+                    // fallback to all ordered by applyTime desc via repository (no direct pageable method existed)
+                    pageResult = applicationRepository.findAll(pageable);
                 }
             } else {
-                // === 组织首领逻辑 (isOrgLeader) ===
+                // 组织首领：只能查看 JOIN_ORG 相关的申请，且只查看其管理的组织
                 if (applicationType != null && !"JOIN_ORG".equals(applicationType)) {
                     return ApiResponse.fail("权限不足：组织负责人只能查看加入组织申请");
                 }
                 List<Long> myOrgIds = organizationInfos.stream().map(OrganizationInfo::getId).toList();
 
                 if (status != null) {
-                    applicationList = applicationRepository.findByApplicationTypeAndTargetIdInAndStatusOrderByApplyTimeDesc("JOIN_ORG", myOrgIds, status);
+                    pageResult = applicationRepository.findByApplicationTypeAndTargetIdInAndStatus("JOIN_ORG", myOrgIds, status, pageable);
                 } else {
-                    applicationList = applicationRepository.findByApplicationTypeAndTargetIdInOrderByApplyTimeDesc("JOIN_ORG", myOrgIds);
+                    pageResult = applicationRepository.findByApplicationTypeAndTargetIdIn("JOIN_ORG", myOrgIds, pageable);
                 }
             }
 
-            // === 批量预查询数据 (避免循环查库) ===
-            Set<Long> joinOrgIds = new HashSet<>();       // 需要查名的社团ID (JOIN_ORG的目标)
-            Set<Long> performanceIds = new HashSet<>();   // 需要查的演出ID (PERFORMANCE_APPLY的目标)
-
-            for (Application app : applicationList) {
-                if ("JOIN_ORG".equals(app.getApplicationType())) {
-                    joinOrgIds.add(app.getTargetId());
-                } else if ("PERFORMANCE_APPLY".equals(app.getApplicationType())) {
-                    performanceIds.add(app.getTargetId());
-                }
+            // 预处理目标ID集合以批量加载额外信息
+            Set<Long> joinOrgIds = new HashSet<>();
+            Set<Long> performanceIds = new HashSet<>();
+            for (Application app : pageResult.getContent()) {
+                if ("JOIN_ORG".equals(app.getApplicationType())) joinOrgIds.add(app.getTargetId());
+                else if ("PERFORMANCE_APPLY".equals(app.getApplicationType())) performanceIds.add(app.getTargetId());
             }
 
-            // 1. 预加载社团名称 (用于 JOIN_ORG 的目标)
             Map<Long, String> orgNameMap = new HashMap<>();
             if (!joinOrgIds.isEmpty()) {
                 List<OrganizationInfo> orgs = organizationInfoRepository.findAllById(joinOrgIds);
-                orgs.forEach(org -> orgNameMap.put(org.getId(), org.getName()));
+                orgs.forEach(o -> orgNameMap.put(o.getId(), o.getName()));
             }
 
-            // 2. 预加载演出信息 & 演出主办方社团信息
             Map<Long, Performance> performanceMap = new HashMap<>();
             Map<Long, String> organizerOrgNameMap = new HashMap<>();
-
             if (!performanceIds.isEmpty()) {
                 List<Performance> performances = performanceRepository.findAllById(performanceIds);
                 Set<Long> organizerOrgIds = new HashSet<>();
-
                 for (Performance p : performances) {
                     performanceMap.put(p.getId(), p);
-                    if ("ORGANIZATION".equals(p.getOrganizerType())) {
-                        organizerOrgIds.add(p.getOrganizerId());
-                    }
+                    if ("ORGANIZATION".equals(p.getOrganizerType())) organizerOrgIds.add(p.getOrganizerId());
                 }
-
-                // 查出演出主办方的社团名
                 if (!organizerOrgIds.isEmpty()) {
                     List<OrganizationInfo> organizerOrgs = organizationInfoRepository.findAllById(organizerOrgIds);
-                    organizerOrgs.forEach(org -> organizerOrgNameMap.put(org.getId(), org.getName()));
+                    organizerOrgs.forEach(o -> organizerOrgNameMap.put(o.getId(), o.getName()));
                 }
             }
 
-            // === DTO 转换 ===
-            List<PendingApplicationDto> resultList = new ArrayList<>();
+            // DTO 转换
+            List<PendingApplicationDto> dtoList = new ArrayList<>();
             ObjectMapper objectMapper = new ObjectMapper();
-
-            for (Application app : applicationList) {
+            for (Application app : pageResult.getContent()) {
                 PendingApplicationDto dto = new PendingApplicationDto();
                 dto.setApplicationId(app.getId());
                 dto.setApplicationType(app.getApplicationType());
                 dto.setApplicantOpenId(app.getApplicant().getOpenid());
-                dto.setApplicantName(app.getApplicant().getNickname()); // 默认是提交人
+                dto.setApplicantName(app.getApplicant().getNickname());
                 dto.setApplyTime(app.getApplyTime());
                 dto.setStatus(app.getStatus());
                 dto.setTargetId(app.getTargetId());
                 dto.setExtraData(app.getExtraData());
-
-                // === 填充富文本信息 (TargetName & ApplyUnit) ===
                 fillRichInfo(app, dto, orgNameMap, performanceMap, organizerOrgNameMap, objectMapper);
-
-                resultList.add(dto);
+                dtoList.add(dto);
             }
 
-            return ApiResponse.success(resultList);
+            org.springframework.data.domain.Page<PendingApplicationDto> dtoPage = new org.springframework.data.domain.PageImpl<>(dtoList, pageable, pageResult.getTotalElements());
+            return ApiResponse.success(dtoPage);
 
         } catch (Exception e) {
             logger.log(Level.WARNING, "申请查询失败", e);
             return ApiResponse.fail("申请查询失败: " + e.getMessage());
         }
+    }
+
+    // 兼容旧签名：调用分页版并返回 content 列表（若需要）
+    public ApiResponse<List<PendingApplicationDto>> listApplications(@NotBlank String openId, String applicationType, Integer status) {
+        ApiResponse<org.springframework.data.domain.Page<PendingApplicationDto>> pageResp = listApplications(openId, applicationType, status, 0, Integer.MAX_VALUE);
+        if (!pageResp.isSuccess()) return ApiResponse.fail(pageResp.getMessage());
+        org.springframework.data.domain.Page<PendingApplicationDto> page = pageResp.getData();
+        return ApiResponse.success(page == null ? new ArrayList<>() : page.getContent());
     }
 
     /**

@@ -14,6 +14,9 @@ import org.example.campus_performance_ticketing.util.FileUtil;
 import org.example.campus_performance_ticketing.util.JwtTokenUtil;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.slf4j.Logger;
@@ -278,6 +281,32 @@ public class UserService {
     }
 
     /**
+     * 分页获取所有用户（ADMIN / SUPER_ADMIN）
+     * @param operatorRole 当前操作者角色
+     * @param page 页码（0-based）
+     * @param size 每页大小
+     */
+    @Transactional(readOnly = true)
+    public ApiResponse<org.springframework.data.domain.Page<UserInfo>> getAllUsersPaginated(@NotBlank String operatorRole, int page, int size) {
+        try {
+            if (!isAdmin(operatorRole)) {
+                return ApiResponse.fail("没有权限查看用户列表");
+            }
+
+            org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(Math.max(0, page), Math.max(1, size));
+            org.springframework.data.domain.Page<UserInfo> users = userRepository.findAll(pageable);
+
+            // 处理头像 URL
+            users.forEach(user -> user.setAvatar(AvatarUrlUtil.buildAvatarUrl(user.getAvatar(), baseUrl)));
+
+            return ApiResponse.success(users);
+        } catch (Exception e) {
+            logger.error("getAllUsersPaginated failed", e);
+            return ApiResponse.fail("分页查询用户列表失败");
+        }
+    }
+
+    /**
      * 根据角色返回不同层级的用户信息
      */
     public ApiResponse<?> getMemberUserInfo(@NotNull Long id,
@@ -373,23 +402,68 @@ public class UserService {
      * 根据用户名模糊搜索用户列表（含权限校验）
      */
     @Transactional(readOnly = true)
-    public ApiResponse<List<UserInfo>> searchUsersByNickname(@NotBlank String keyword, @NotBlank String operatorRole) {
+    public ApiResponse<List<UserInfo>> searchUsersByNickname(@NotBlank String keyword, @NotBlank String operatorRole,
+                                                              String userRole) {
+         try {
+             // 权限校验：只有管理员可以搜索用户列表
+             if (!isAdmin(operatorRole)) {
+                 return ApiResponse.fail("没有权限搜索用户");
+             }
+
+             List<UserInfo> users;
+
+             if (userRole != null && !isValidRole(userRole)) {
+                 return ApiResponse.fail("用户角色参数不合法，只能为 USER、VENUE_ADMIN、ADMIN、SUPER_ADMIN");
+             }
+
+             if (userRole == null) {
+                 users = userRepository.findByNicknameContaining(keyword);
+             } else {
+                 users = userRepository.findByNicknameContainingAndRole(keyword, userRole);
+             }
+
+             // 处理头像URL
+             users.forEach(user -> {
+                 user.setAvatar(AvatarUrlUtil.buildAvatarUrl(user.getAvatar(), baseUrl));
+             });
+
+             return ApiResponse.success(users);
+         } catch (Exception e) {
+             logger.error("searchUsersByNickname failed for keyword={}", keyword, e);
+             return ApiResponse.fail("搜索用户失败");
+         }
+     }
+
+    /**
+     * 分页模糊搜索用户（管理员权限）
+     */
+    @Transactional(readOnly = true)
+    public ApiResponse<Page<UserInfo>> searchUsersByNicknamePaginated(@NotBlank String keyword, @NotBlank String operatorRole,
+                                                                                                      String userRole, int page, int size) {
         try {
-            // 权限校验：只有管理员可以搜索用户列表
             if (!isAdmin(operatorRole)) {
                 return ApiResponse.fail("没有权限搜索用户");
             }
 
-            List<UserInfo> users = userRepository.findByNicknameContaining(keyword);
+            if (userRole != null && !isValidRole(userRole)) {
+                return ApiResponse.fail("用户角色参数不合法，只能为 USER、VENUE_ADMIN、ADMIN、SUPER_ADMIN");
+            }
 
-            // 处理头像URL
-            users.forEach(user -> {
-                user.setAvatar(AvatarUrlUtil.buildAvatarUrl(user.getAvatar(), baseUrl));
-            });
+            Pageable pageable = PageRequest.of(Math.max(0, page), Math.max(1, size));
+            Page<UserInfo> result;
 
-            return ApiResponse.success(users);
+            if (userRole == null) {
+                result = userRepository.findByNicknameContaining(keyword, pageable);
+            } else {
+                result = userRepository.findByNicknameContainingAndRole(keyword, userRole, pageable);
+            }
+
+            // Map avatars
+            result.forEach(u -> u.setAvatar(AvatarUrlUtil.buildAvatarUrl(u.getAvatar(), baseUrl)));
+
+            return ApiResponse.success(result);
         } catch (Exception e) {
-            logger.error("searchUsersByNickname failed for keyword={}", keyword, e);
+            logger.error("searchUsersByNicknamePaginated failed for keyword={}", keyword, e);
             return ApiResponse.fail("搜索用户失败");
         }
     }
@@ -413,3 +487,4 @@ public class UserService {
         }
     }
 }
+

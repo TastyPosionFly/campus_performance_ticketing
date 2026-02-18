@@ -9,9 +9,11 @@ import org.example.campus_performance_ticketing.logic.VenueService;
 import org.example.campus_performance_ticketing.logic.dto.ApiResponse;
 import org.example.campus_performance_ticketing.logic.dto.venue.*;
 import org.example.campus_performance_ticketing.model.VenueBlockedDay;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -81,6 +83,26 @@ public class VenueController {
     }
 
 
+    @GetMapping("/{venueId}/events")
+    public ApiResponse<List<VenueEventDto>> getVenueEvents(
+            @PathVariable Long venueId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) String start,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) String end
+    ) {
+        try {
+            LocalDate startDate = LocalDate.parse(start);
+            LocalDate endDate = LocalDate.parse(end);
+            List<VenueEventDto> events = venueService.getEventsForVenue(venueId, startDate, endDate);
+            return ApiResponse.success(events);
+        } catch (java.time.format.DateTimeParseException ex) {
+            return ApiResponse.fail("日期格式错误，请使用 yyyy-MM-dd");
+        } catch (IllegalArgumentException ex) {
+            return ApiResponse.fail(ex.getMessage());
+        } catch (Exception ex) {
+            return ApiResponse.fail("获取场地日程失败: " + ex.getMessage());
+        }
+    }
+
     /**
      * 更新场地信息
      */
@@ -92,6 +114,7 @@ public class VenueController {
         String openId = (String) request.getAttribute("openid");
         return venueService.updateVenueBasicInfo(dto, openId);
     }
+
 
     /**
      * 删除场地

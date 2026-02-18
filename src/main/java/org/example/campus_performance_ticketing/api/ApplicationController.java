@@ -44,13 +44,15 @@ public class ApplicationController {
      * GET /api/application/list?applicationType=CREATE_ORG&status=1
      */
     @GetMapping("/list")
-    public ApiResponse<List<PendingApplicationDto>> listApplications(
+    public ApiResponse<org.springframework.data.domain.Page<PendingApplicationDto>> listApplications(
             HttpServletRequest request,
             @RequestParam(required = false) String applicationType,
-            @RequestParam(required = false) Integer status
+            @RequestParam(required = false) Integer status,
+            @RequestParam(name = "page", required = false, defaultValue = "0") int page,
+            @RequestParam(name = "size", required = false, defaultValue = "20") int size
     ) {
         String openId = (String) request.getAttribute("openid");
-        return applicationService.listApplications(openId, applicationType, status);
+        return applicationService.listApplications(openId, applicationType, status, page, size);
     }
 
     /**

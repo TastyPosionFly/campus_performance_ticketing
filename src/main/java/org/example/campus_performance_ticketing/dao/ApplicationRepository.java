@@ -110,4 +110,23 @@ public interface ApplicationRepository extends JpaRepository<Application, Long> 
                                                                               String applicationType,
                                                                               Long targetId,
                                                                               List<Integer> statuses);
+
+    // ========== 分页变体 =========
+    org.springframework.data.domain.Page<Application> findByApplicantIdAndApplicationType(Long applicantId, String applicationType, org.springframework.data.domain.Pageable pageable);
+
+    org.springframework.data.domain.Page<Application> findByApplicantIdAndApplicationTypeAndStatus(Long applicantId, String applicationType, Integer status, org.springframework.data.domain.Pageable pageable);
+
+    // 分页查询按类型+状态
+    org.springframework.data.domain.Page<Application> findByApplicationTypeAndStatus(String applicationType, Integer status, org.springframework.data.domain.Pageable pageable);
+
+    // 分页按类型
+    org.springframework.data.domain.Page<Application> findByApplicationType(String applicationType, org.springframework.data.domain.Pageable pageable);
+
+    // 分页按状态
+    org.springframework.data.domain.Page<Application> findByStatus(Integer status, org.springframework.data.domain.Pageable pageable);
+
+    // 分页按类型和目标ID列表（用于组织负责人场景）
+    org.springframework.data.domain.Page<Application> findByApplicationTypeAndTargetIdInAndStatus(String applicationType, java.util.List<Long> targetIds, Integer status, org.springframework.data.domain.Pageable pageable);
+
+    org.springframework.data.domain.Page<Application> findByApplicationTypeAndTargetIdIn(String applicationType, java.util.List<Long> targetIds, org.springframework.data.domain.Pageable pageable);
 }

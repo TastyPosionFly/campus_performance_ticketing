@@ -19,6 +19,13 @@ public interface VenueOpeningHoursRepository extends JpaRepository<VenueOpeningH
     List<VenueOpeningHours> findByVenueId(Long venueId);
 
     /**
+     * 批量查询多个场馆的开放时间配置
+     * @param venueIds 场馆ID列表
+     * @return 配置列表
+     */
+    List<VenueOpeningHours> findByVenueIdIn(List<Long> venueIds);
+
+    /**
      * 查询某场地在星期几的配置
      * 用于检查某一天是否开放
      *

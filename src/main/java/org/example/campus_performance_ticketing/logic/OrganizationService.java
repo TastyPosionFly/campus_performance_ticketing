@@ -11,6 +11,8 @@ import org.example.campus_performance_ticketing.model.*;
 import org.example.campus_performance_ticketing.util.AvatarUrlUtil;
 import org.example.campus_performance_ticketing.util.FileUtil;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -283,25 +285,36 @@ public class OrganizationService {
      * 查看所有组织
      */
     public ApiResponse<List<PublicOrganizationInfo>> getAllOrganizations() {
-        try {
-            Iterable<OrganizationInfo> organizations = organizationInfoRepository.findAll();
+        // 保留原有行为的兼容方法（非分页），调用分页方法并返回第一页全部内容
+        ApiResponse<org.springframework.data.domain.Page<PublicOrganizationInfo>> pageResp = getOrganizationsPaginated(0, Integer.MAX_VALUE);
+        if (!pageResp.isSuccess()) return ApiResponse.fail(pageResp.getMessage());
+        org.springframework.data.domain.Page<PublicOrganizationInfo> page = pageResp.getData();
+        return ApiResponse.success(page == null ? new ArrayList<>() : page.getContent());
+    }
 
-            // 转换为 PublicOrganizationInfo 列表
+    /**
+     * 分页获取组织列表（排除 status = 2 表示已解散/不可见）
+     * @param page 0-based 页码
+     * @param size 每页大小
+     */
+    public ApiResponse<org.springframework.data.domain.Page<PublicOrganizationInfo>> getOrganizationsPaginated(int page, int size) {
+        try {
+            org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(Math.max(0, page), Math.max(1, size));
+            org.springframework.data.domain.Page<OrganizationInfo> pageResult = organizationInfoRepository.findByStatusNot(2, pageable);
+
             List<PublicOrganizationInfo> orgDtos = new ArrayList<>();
-            for (OrganizationInfo org : organizations) {
-                if (org.getStatus() == 2) {
-                    continue; // 跳过待审核和已解散的组织
+            for (OrganizationInfo org : pageResult.getContent()) {
+                if (org == null) continue;
+
+                PublicUserInfo leader = new PublicUserInfo();
+                if (org.getLeader() != null) {
+                    leader.setNickname(org.getLeader().getNickname());
+                    leader.setAvatar(AvatarUrlUtil.buildAvatarUrl(org.getLeader().getAvatar(), baseUrl));
+                    leader.setMajor(org.getLeader().getMajor());
+                    leader.setCollege(org.getLeader().getCollege());
+                    leader.setStatus(org.getLeader().getStatus());
                 }
 
-                // 构造组织首领的 PublicUserInfo
-                PublicUserInfo leader = new PublicUserInfo();
-                leader.setNickname(org.getLeader().getNickname());
-                leader.setAvatar(AvatarUrlUtil.buildAvatarUrl(org.getLeader().getAvatar(), baseUrl));
-                leader.setMajor(org.getLeader().getMajor());
-                leader.setCollege(org.getLeader().getCollege());
-                leader.setStatus(org.getLeader().getStatus());
-
-                // 构造 PublicOrganizationInfo
                 PublicOrganizationInfo publicOrganizationInfo = new PublicOrganizationInfo();
                 publicOrganizationInfo.setId(org.getId());
                 publicOrganizationInfo.setName(org.getName());
@@ -313,12 +326,14 @@ public class OrganizationService {
                 orgDtos.add(publicOrganizationInfo);
             }
 
-            ApiResponse<List<PublicOrganizationInfo>> resp = ApiResponse.success(orgDtos);
+            org.springframework.data.domain.Page<PublicOrganizationInfo> dtoPage = new org.springframework.data.domain.PageImpl<>(orgDtos, pageable, pageResult.getTotalElements());
+
+            ApiResponse<org.springframework.data.domain.Page<PublicOrganizationInfo>> resp = ApiResponse.success(dtoPage);
             resp.setMessage("组织列表获取成功");
             return resp;
         } catch (Exception e) {
-            logger.warning("获取组织列表失败: " + e.getMessage());
-            return ApiResponse.fail("获取组织列表失败: " + e.getMessage());
+            logger.warning("分页获取组织列表失败: " + e.getMessage());
+            return ApiResponse.fail("分页获取组织列表失败: " + e.getMessage());
         }
     }
 
@@ -370,6 +385,51 @@ public class OrganizationService {
         } catch (Exception e) {
             logger.warning("按名称搜索组织失败: " + e.getMessage());
             return ApiResponse.fail("按名称搜索组织失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 分页按名称模糊搜索组织（排除 status = 2） - 用于 controller 的分页搜索
+     */
+    public ApiResponse<Page<PublicOrganizationInfo>> searchOrganizationsByNamePaginated(@NotBlank String keyword, int page, int size) {
+        if (!StringUtils.hasText(keyword)) {
+            return ApiResponse.fail("搜索关键字不能为空");
+        }
+
+        try {
+            String q = keyword.trim();
+            org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(Math.max(0, page), Math.max(1, size));
+            org.springframework.data.domain.Page<OrganizationInfo> pageResult = organizationInfoRepository.findByNameContainingIgnoreCaseAndStatusNot(q, 2, pageable);
+
+            List<PublicOrganizationInfo> results = new ArrayList<>();
+            for (OrganizationInfo org : pageResult.getContent()) {
+                PublicUserInfo leader = new PublicUserInfo();
+                if (org.getLeader() != null) {
+                    leader.setNickname(org.getLeader().getNickname());
+                    leader.setAvatar(AvatarUrlUtil.buildAvatarUrl(org.getLeader().getAvatar(), baseUrl));
+                    leader.setMajor(org.getLeader().getMajor());
+                    leader.setCollege(org.getLeader().getCollege());
+                    leader.setStatus(org.getLeader().getStatus());
+                }
+
+                PublicOrganizationInfo publicOrganizationInfo = new PublicOrganizationInfo();
+                publicOrganizationInfo.setId(org.getId());
+                publicOrganizationInfo.setName(org.getName());
+                publicOrganizationInfo.setDescription(org.getDescription());
+                publicOrganizationInfo.setStatus(org.getStatus());
+                publicOrganizationInfo.setAvatarUrl(AvatarUrlUtil.buildAvatarUrl(org.getAvatarUrl(), baseUrl));
+                publicOrganizationInfo.setLeader(leader);
+
+                results.add(publicOrganizationInfo);
+            }
+
+            Page<PublicOrganizationInfo> dtoPage = new PageImpl<>(results, pageable, pageResult.getTotalElements());
+            ApiResponse<Page<PublicOrganizationInfo>> resp = ApiResponse.success(dtoPage);
+            resp.setMessage("按名称搜索组织成功，匹配数量: " + dtoPage.getTotalElements());
+            return resp;
+        } catch (Exception e) {
+            logger.warning("分页按名称搜索组织失败: " + e.getMessage());
+            return ApiResponse.fail("分页按名称搜索组织失败: " + e.getMessage());
         }
     }
 

@@ -50,4 +50,12 @@ public interface OrganizationInfoRepository extends JpaRepository<OrganizationIn
      * 如果需要仅按名称模糊匹配（不排除任何 status），可以使用：
      */
     List<OrganizationInfo> findByNameContainingIgnoreCase(String name);
+
+    // 分页版按名称模糊查询并排除指定状态
+    org.springframework.data.domain.Page<OrganizationInfo> findByNameContainingIgnoreCaseAndStatusNot(String name, int statusToExclude, org.springframework.data.domain.Pageable pageable);
+
+    /**
+     * 分页查询：排除某个状态（例如已解散 status=2），用于列表分页显示
+     */
+    org.springframework.data.domain.Page<OrganizationInfo> findByStatusNot(int status, org.springframework.data.domain.Pageable pageable);
 }

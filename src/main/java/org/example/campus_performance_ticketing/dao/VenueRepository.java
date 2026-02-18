@@ -18,7 +18,7 @@ public interface VenueRepository extends JpaRepository<Venue, Long> {
      * @param name 场地名称
      * @return 场地列表
      */
-    List<Venue> findByNameContaining(String name);
+    List<Venue> findByNameContainingIgnoreCase(String name);
 
     /**
      * 根据场地类型查询

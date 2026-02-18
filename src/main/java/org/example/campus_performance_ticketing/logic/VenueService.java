@@ -6,10 +6,13 @@ import jakarta.validation.Valid; // 如果是 Spring Boot 2.x 可能是 javax.va
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
+import org.example.campus_performance_ticketing.dao.OrganizationInfoRepository;
+import org.example.campus_performance_ticketing.dao.PerformanceSessionRepository;
 import org.example.campus_performance_ticketing.dao.UserRepository;
 import org.example.campus_performance_ticketing.dao.VenueRepository;
 import org.example.campus_performance_ticketing.logic.dto.ApiResponse;
 import org.example.campus_performance_ticketing.logic.dto.venue.*;
+import org.example.campus_performance_ticketing.model.PerformanceSession;
 import org.example.campus_performance_ticketing.model.UserInfo;
 import org.example.campus_performance_ticketing.model.Venue;
 import org.example.campus_performance_ticketing.util.AvatarUrlUtil;
@@ -23,6 +26,8 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -37,6 +42,9 @@ public class VenueService {
 
     private final VenueRepository venueRepository;
     private final UserRepository userRepository;
+    private final VenueOpeningHoursService venueOpeningHoursService;
+    private final PerformanceSessionRepository performanceSessionRepository;
+    private final OrganizationInfoRepository organizationRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private static final Logger logger = Logger.getLogger(VenueService.class.getName());
@@ -75,7 +83,7 @@ public class VenueService {
         if (!hasCoverFile && !hasCoverUrl) {
             // 这个异常最好自定义，例如 BusinessException，会被拦截器捕获
             logger.warning("封面图未提供");
-            return ApiResponse.fail("必须上传一张封面图片或提供图片 URL");
+            return ApiResponse.fail("必须上传一张封面图片");
         }
 
         Venue venue = new Venue();
@@ -84,15 +92,15 @@ public class VenueService {
         venue.setAddress(dto.getAddress());
         venue.setCapacity(dto.getCapacity());
         venue.setType(dto.getType());
-        venue.setStatus(1); // 默认正常 1:正常, 0:维护, 2:停用
+        venue.setStatus(2); // 默认正常 1:正常, 0:维护, 2:停用
 
         // 2. 处理封面图
-        String coverPath = null;
+        String coverPath;
         try {
             if (hasCoverFile) {
                 // 情况A: 上传了文件 -> 保存文件
                 coverPath = FileUtil.saveImage(dto.getCoverImageFile(), venueAlbumUploadDir);
-            } else if (hasCoverUrl) {
+            } else {
                 // 情况B: 提供了URL -> 下载并保存到本地 (修改了这里)
                 // 原代码: coverPath = dto.getCoverImageUrl();
                 coverPath = FileUtil.saveImageFromUrl(dto.getCoverImageUrl(), venueAlbumUploadDir);
@@ -125,10 +133,13 @@ public class VenueService {
             }
         }
 
+        logger.info("照片列表为空吗？ " + (photoList.isEmpty() ? "是" : "否") + " URL数量: " + (dto.getPhotoUrlList() == null ? 0 : dto.getPhotoUrlList().size()));
+
         // 3.2 处理文件列表
         if (dto.getPhotoFiles() != null && !dto.getPhotoFiles().isEmpty()) {
             for (MultipartFile file : dto.getPhotoFiles()) {
                 try {
+                    logger.info("正在处理轮播图文件: " + file.getOriginalFilename());
                     String path = FileUtil.saveImage(file, venueAlbumUploadDir);
                     if (path != null) {
                         // 生成唯一ID，并记录原文件名
@@ -143,6 +154,8 @@ public class VenueService {
                 }
             }
         }
+
+        logger.info("照片列表内容: " + photoList.stream().map(VenuePhotoInfo::getUrl).collect(Collectors.joining(", ")));
 
         try {
             String photoListJson = objectMapper.writeValueAsString(photoList);
@@ -273,11 +286,15 @@ public class VenueService {
         if (StringUtils.hasText(venue.getPhotoList())) {
             try {
                 currentPhotos = objectMapper.readValue(venue.getPhotoList(),
-                        new com.fasterxml.jackson.core.type.TypeReference<List<VenuePhotoInfo>>() {
+                        new com.fasterxml.jackson.core.type.TypeReference<>() {
                         });
                 if (currentPhotos == null) currentPhotos = new ArrayList<>();
             } catch (JsonProcessingException e) {
-                currentPhotos = new ArrayList<>();
+                // 更详细的日志，包含原始 JSON 内容和异常，便于排查数据问题
+                String raw = venue.getPhotoList();
+                logger.warning("解析场地轮播图失败 ID=" + venue.getId() + " rawPhotoList=" + (raw == null ? "<null>" : raw));
+                logger.log(java.util.logging.Level.WARNING, "解析轮播图JSON失败，venueId=" + venue.getId(), e);
+                //dto.setPhotoList(new ArrayList<>());
             }
         }
 
@@ -298,7 +315,7 @@ public class VenueService {
             try {
                 java.util.Map<String, Integer> replaceMap = objectMapper.readValue(
                         dto.getReplacePhotoMap(),
-                        new com.fasterxml.jackson.core.type.TypeReference<java.util.Map<String, Integer>>() {
+                        new com.fasterxml.jackson.core.type.TypeReference<>() {
                         }
                 );
 
@@ -443,6 +460,24 @@ public class VenueService {
         }
 
         VenueDetailDto dto = convertToDetailDto(venue);
+        // 填充当天的开放时间与屏蔽标记
+        try {
+            java.time.LocalDate today = java.time.LocalDate.now();
+            int dayOfWeek = today.getDayOfWeek().getValue(); // 1 (Monday) - 7 (Sunday)
+
+            // 获取当天的开放时间（如果未配置则为 null）
+            OpeningHoursDto todayHours = venueOpeningHoursService.getOpeningHoursForDay(venue.getId(), dayOfWeek);
+            dto.setTodayOpeningHours(todayHours);
+
+            // 检查当天是否被屏蔽（通过 service 提供的 helper）
+            boolean blocked = venueOpeningHoursService.isBlockedOnDate(venue.getId(), today);
+            dto.setTodayBlocked(blocked);
+        } catch (Exception e) {
+            logger.warning("填充当天开放时间失败: " + e.getMessage());
+            dto.setTodayOpeningHours(null);
+            dto.setTodayBlocked(false);
+        }
+
         return ApiResponse.success(dto);
     }
 
@@ -454,12 +489,12 @@ public class VenueService {
      * @param status 状态 (可选)
      * @return 场地列表
      */
-    public ApiResponse<List<VenueDetailDto>> searchVenues(String name, Integer type, Integer status) {
-        List<Venue> venues;
+     public ApiResponse<List<VenueDetailDto>> searchVenues(String name, Integer type, Integer status) {
+         List<Venue> venues;
 
         // 简单的组合查询逻辑 (实际项目中可用 Specification 或 QueryDSL 优化)
         if (StringUtils.hasText(name)) {
-            venues = venueRepository.findByNameContaining(name);
+            venues = venueRepository.findByNameContainingIgnoreCase(name);
             // 内存过滤其他条件
             if (type != null) venues = venues.stream().filter(v -> v.getType().equals(type)).collect(Collectors.toList());
             if (status != null) venues = venues.stream().filter(v -> v.getStatus().equals(status)).collect(Collectors.toList());
@@ -476,7 +511,32 @@ public class VenueService {
                 .map(this::convertToDetailDto)
                 .collect(Collectors.toList());
 
-        return ApiResponse.success(dtoList);
+        // 为每个返回的 DTO 批量填充当天的开放时间与屏蔽标记，避免前端再额外调用接口（避免 N+1 查询）
+        try {
+            java.time.LocalDate today = java.time.LocalDate.now();
+            java.util.List<Long> ids = dtoList.stream().map(VenueDetailDto::getId).collect(Collectors.toList());
+            java.util.Map<String, java.util.Map<Long, Object>> bulk = venueOpeningHoursService.getBulkTodayInfo(ids, today);
+            java.util.Map<Long, Object> hoursMap = bulk.getOrDefault("hours", new java.util.HashMap<>());
+            java.util.Map<Long, Object> blockedMap = bulk.getOrDefault("blocked", new java.util.HashMap<>());
+
+            for (VenueDetailDto dto : dtoList) {
+                try {
+                    Object h = hoursMap.get(dto.getId());
+                    if (h instanceof OpeningHoursDto) dto.setTodayOpeningHours((OpeningHoursDto) h);
+                    else dto.setTodayOpeningHours(null);
+
+                    Object b = blockedMap.get(dto.getId());
+                    dto.setTodayBlocked(b instanceof Boolean ? (Boolean) b : false);
+                } catch (Exception inner) {
+                    dto.setTodayOpeningHours(null);
+                    dto.setTodayBlocked(false);
+                }
+            }
+        } catch (Exception e) {
+            logger.warning("填充列表当天开放时间失败: " + e.getMessage());
+        }
+
+         return ApiResponse.success(dtoList);
     }
 
     /**
@@ -503,21 +563,81 @@ public class VenueService {
         // 2. 处理图片列表 JSON -> List
         // 3. 处理图片列表 JSON -> List (并拼接前缀)
         if (StringUtils.hasText(venue.getPhotoList())) {
-            try {
-                List<VenuePhotoInfo> photos = objectMapper.readValue(venue.getPhotoList(),
-                        new com.fasterxml.jackson.core.type.TypeReference<List<VenuePhotoInfo>>() {});
+            String raw = venue.getPhotoList();
+            List<VenuePhotoInfo> photos = null;
 
-                if (photos != null) {
-                    for (VenuePhotoInfo photo : photos) {
-                        // 遍历每一张轮播图，拼接前缀
-                        if (StringUtils.hasText(photo.getUrl())) {
-                            photo.setUrl(AvatarUrlUtil.buildAvatarUrl(photo.getUrl(), fileBaseUrl));
+            // 优先：把 photoList 解析为字符串数组（每个元素都是地址），并映射成 VenuePhotoInfo
+            try {
+                List<String> urlList = objectMapper.readValue(raw, new com.fasterxml.jackson.core.type.TypeReference<>() {});
+                if (urlList != null) {
+                    photos = new ArrayList<>();
+                    for (String u : urlList) {
+                        photos.add(new VenuePhotoInfo(UUID.randomUUID().toString(), u == null ? "" : u, ""));
+                    }
+                }
+            } catch (Exception ignored) {}
+
+            // 次优：正常解析为 List<VenuePhotoInfo>
+            if (photos == null) {
+                try {
+                    photos = objectMapper.readValue(raw, new com.fasterxml.jackson.core.type.TypeReference<>() {});
+                } catch (Exception ignored) {}
+            }
+
+            // 其它回退：保留之前的多种策略（双重序列化、单对象包数组、单引号、宽松 Map->对象）
+            if (photos == null) {
+                try {
+                    if (raw.startsWith("\"") && raw.endsWith("\"")) {
+                        String unwrapped = objectMapper.readValue(raw, String.class);
+                        photos = objectMapper.readValue(unwrapped, new com.fasterxml.jackson.core.type.TypeReference<>() {});
+                    }
+                } catch (Exception ignored) {}
+            }
+
+            if (photos == null) {
+                try {
+                    if (raw.trim().startsWith("{") && raw.trim().endsWith("}")) {
+                        String wrapped = "[" + raw + "]";
+                        photos = objectMapper.readValue(wrapped, new com.fasterxml.jackson.core.type.TypeReference<>() {});
+                    }
+                } catch (Exception ignored) {}
+            }
+
+            if (photos == null) {
+                try {
+                    if (raw.contains("'")) {
+                        String replaced = raw.replace('\'', '"');
+                        photos = objectMapper.readValue(replaced, new com.fasterxml.jackson.core.type.TypeReference<>() {});
+                    }
+                } catch (Exception ignored) {}
+            }
+
+            if (photos == null) {
+                try {
+                    List<java.util.Map<String, Object>> list = objectMapper.readValue(raw, new com.fasterxml.jackson.core.type.TypeReference<>() {});
+                    photos = new ArrayList<>();
+                    if (list != null) {
+                        for (java.util.Map<String, Object> m : list) {
+                            String id = m.getOrDefault("id", m.getOrDefault("ID", "")).toString();
+                            String url = m.getOrDefault("url", m.getOrDefault("path", m.getOrDefault("image", ""))).toString();
+                            String orig = m.getOrDefault("originalName", m.getOrDefault("original_name", "")).toString();
+                            photos.add(new VenuePhotoInfo(id, url, orig));
                         }
                     }
-                    dto.setPhotoList(photos);
+                } catch (Exception ignored) {}
+            }
+
+            if (photos != null) {
+                for (VenuePhotoInfo photo : photos) {
+                    if (StringUtils.hasText(photo.getUrl())) {
+                        photo.setUrl(AvatarUrlUtil.buildAvatarUrl(photo.getUrl(), fileBaseUrl));
+                    }
                 }
-            } catch (JsonProcessingException e) {
-                logger.warning("解析场地轮播图失败 ID=" + venue.getId());
+                dto.setPhotoList(photos);
+            } else {
+                // 全部解析尝试失败，记录详细日志便于排查
+                logger.warning("解析场地轮播图失败 ID=" + venue.getId() + " rawPhotoList=" + (raw == null ? "<null>" : raw));
+                logger.warning("尝试了多种解析策略仍失败，已回退为空列表");
                 dto.setPhotoList(new ArrayList<>());
             }
         } else {
@@ -569,7 +689,7 @@ public class VenueService {
                 if (StringUtils.hasText(v.getPhotoList())) {
                     try {
                         List<VenuePhotoInfo> photos = objectMapper.readValue(v.getPhotoList(),
-                                new com.fasterxml.jackson.core.type.TypeReference<List<VenuePhotoInfo>>() {});
+                                new com.fasterxml.jackson.core.type.TypeReference<>() {});
 
                         if (photos != null) {
                             for (VenuePhotoInfo photo : photos) {
@@ -597,4 +717,101 @@ public class VenueService {
 
         logger.info("VenueCleanupJob 完成：物理移除场地 " + dbRecordsDeletedCount + " 条，删除文件 " + filesDeletedCount + " 个");
     }
+
+    /**
+     * 查询场馆在指定日期区间内的所有场次（轻量 DTO）
+     *
+     * @param venueId   场馆 ID
+     * @param startDate yyyy-MM-dd 范围开始（包含）
+     * @param endDate   yyyy-MM-dd 范围结束（包含）
+     * @return 事件列表（不包含票数，仅包含你需要的字段）
+     */
+    public List<VenueEventDto> getEventsForVenue(Long venueId, LocalDate startDate, LocalDate endDate) {
+        if (venueId == null || startDate == null || endDate == null) {
+            return java.util.Collections.emptyList();
+        }
+
+        long spanDays = java.time.temporal.ChronoUnit.DAYS.between(startDate, endDate);
+        if (spanDays < 0 || spanDays > 365) {
+            throw new IllegalArgumentException("查询区间不合法或跨度过大（建议 ≤ 365 天）");
+        }
+
+        // 左闭右开时间范围：startDate.atStartOfDay() .. endDate.plusDays(1).atStartOfDay()
+        LocalDateTime startDateTime = startDate.atStartOfDay();
+        LocalDateTime endDateTime = endDate.plusDays(1).atStartOfDay();
+
+        // 使用 repository 中已有的 findConflicts 查询（s.startTime < :end AND s.endTime > :start）
+        List<PerformanceSession> sessions = performanceSessionRepository.findConflicts(venueId, startDateTime, endDateTime);
+        if (sessions == null || sessions.isEmpty()) return java.util.Collections.emptyList();
+
+        return sessions.stream().map(s -> {
+            VenueEventDto dto = new VenueEventDto();
+            dto.setSessionId(s.getId());
+
+            if (s.getPerformance() != null) {
+                dto.setPerformanceId(s.getPerformance().getId());
+                dto.setPerformanceName(s.getPerformance().getTitle());
+                // 从 performance 的 organizerType / organizerId 获取举办者名称
+                String organizerName = resolveOrganizerName(
+                        s.getPerformance().getOrganizerType(),
+                        s.getPerformance().getOrganizerId()
+                );
+                dto.setOrganizerName(StringUtils.hasText(organizerName) ? organizerName : null);
+            }
+
+            if (s.getStartTime() != null) {
+                dto.setStartTime(s.getStartTime());
+                dto.setPerformanceDate(s.getStartTime().toLocalDate());
+            }
+            if (s.getEndTime() != null) dto.setEndTime(s.getEndTime());
+
+            return dto;
+        }).sorted((a, b) -> {
+            LocalDateTime at = a.getStartTime();
+            LocalDateTime bt = b.getStartTime();
+            if (at == null && bt == null) return 0;
+            if (at == null) return 1;
+            if (bt == null) return -1;
+            return at.compareTo(bt);
+        }).collect(Collectors.toList());
+    }
+
+    /**
+     * 根据 organizerType + organizerId 解析举办方名称
+     * 支持：USER / ORGANIZATION
+     */
+    private String resolveOrganizerName(String organizerType, Long organizerId) {
+        if (!StringUtils.hasText(organizerType) || organizerId == null) return null;
+
+        if ("USER".equalsIgnoreCase(organizerType)) {
+            return userRepository.findById(organizerId)
+                    .map(u -> { // UserInfo 中使用 getNickname 作为展示名（与你之前的代码一致）
+                        try {
+                            return u.getNickname();
+                        } catch (Exception e) {
+                            return null;
+                        }
+                    })
+                    .orElse(null);
+        }
+
+        if ("ORGANIZATION".equalsIgnoreCase(organizerType)) {
+            // 组织机构表可能有 name 字段
+            return organizationRepository.findById(organizerId)
+                    .map(org -> {
+                        try {
+                            // 假定 Organization 实体有 getName()
+                            return org.getName();
+                        } catch (Exception e) {
+                            return null;
+                        }
+                    })
+                    .orElse(null);
+        }
+
+        // 其它类型可以扩展
+        return null;
+    }
 }
+
+

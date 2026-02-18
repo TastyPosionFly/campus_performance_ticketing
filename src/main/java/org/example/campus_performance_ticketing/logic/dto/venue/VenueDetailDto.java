@@ -39,6 +39,16 @@ public class VenueDetailDto {
     private VenueManagerDto manager;
 
     /**
+     * 当天的开放时间（前端需要显示当日是否开放与时段）
+     */
+    private OpeningHoursDto todayOpeningHours;
+
+    /**
+     * 当天是否被屏蔽（true = 当天不可用）
+     */
+    private Boolean todayBlocked;
+
+    /**
      * 静态工厂方法：从 Entity 转换为 DTO
      * (实际转换逻辑通常在 Service 中处理复杂字段)
      */

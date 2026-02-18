@@ -241,6 +241,58 @@ GET /api/venues/{venueId}/hours-and-blocks
   }
 }
 ```
+
+### 8. 获取场地日程（场地内全部演出场次）
+
+```
+GET /api/venues/{venueId}/events?start=yyyy-MM-dd&end=yyyy-MM-dd
+```
+
+**请求参数：**
+- `venueId`：路径变量，场馆ID。
+- `start`：查询区间起始日期（字符串，格式：yyyy-MM-dd），必填。
+- `end`：查询区间终止日期（字符串，格式：yyyy-MM-dd），必填。
+
+**响应示例：**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "sessionId": 1001,
+      "performanceId": 2001,
+      "performanceName": "夏夜交响音乐会",
+      "organizerName": "艺术团",
+      "startTime": "2026-07-05T19:30:00",
+      "endTime": "2026-07-05T21:00:00",
+      "performanceDate": "2026-07-05"
+    },
+    {
+      "sessionId": 1002,
+      "performanceId": 2002,
+      "performanceName": "青春舞会",
+      "organizerName": "街舞协会",
+      "startTime": "2026-07-06T18:00:00",
+      "endTime": "2026-07-06T20:00:00",
+      "performanceDate": "2026-07-06"
+    }
+  ]
+}
+```
+
+#### 设计说明
+- 支持任意日期区间检索，返回每场排期的sessionId、演出名、举办方、起止时间等核心信息，适用前端日历日程、场地管理、可视化等业务。
+- 参数如格式或区间非法时返回友好错误提示（如日期格式错误、跨度过大等）。
+- 响应结构简洁，所有时间字段为标准ISO格式字符串，组织者名称避免隐私泄露。
+- 场景包括预约场地时冲突校验、运营后台排班展示、大屏日历等。
+
+**错误响应示例：**
+```json
+{
+  "success": false,
+  "message": "日期格式错误，请使用 yyyy-MM-dd"
+}
+```
 ---
 
 ## 四、错误响应约定

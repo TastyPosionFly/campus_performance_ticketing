@@ -6,12 +6,11 @@ import org.example.campus_performance_ticketing.logic.OrganizationService;
 import org.example.campus_performance_ticketing.logic.OrganizationMemberService;
 import org.example.campus_performance_ticketing.logic.dto.ApiResponse;
 import org.example.campus_performance_ticketing.logic.dto.organization.*;
-import org.example.campus_performance_ticketing.model.OrganizationAlbum;
 import org.example.campus_performance_ticketing.util.FileUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
 import org.springframework.http.MediaType;
-import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -29,9 +28,7 @@ public class OrganizationController {
     @Value("${org.avatar.upload-dir}")
     private String avatarUploadDir;
 
-    @Value("${org.album.upload-dir}")
-    private String albumUploadDir;
-
+    // albumUploadDir not currently used; kept out to avoid unused-field warnings
     @Autowired
     public OrganizationController(OrganizationService organizationService,
                                   OrganizationMemberService organizationMemberService,
@@ -115,8 +112,11 @@ public class OrganizationController {
      * 获取所有组织（不包含待审核/已解散）
      */
     @GetMapping("/all")
-    public ApiResponse<List<PublicOrganizationInfo>> getAllOrganizations() {
-        return organizationService.getAllOrganizations();
+    public ApiResponse<Page<PublicOrganizationInfo>> getAllOrganizations(
+            @RequestParam(name = "page", required = false, defaultValue = "0") int page,
+            @RequestParam(name = "size", required = false, defaultValue = "20") int size
+    ) {
+        return organizationService.getOrganizationsPaginated(page, size);
     }
 
     /**
@@ -124,10 +124,12 @@ public class OrganizationController {
      * 示例调用: GET /api/organization/search?keyword=音乐
      */
     @GetMapping("/search")
-    public ApiResponse<List<PublicOrganizationInfo>> searchOrganizationsByName(
-            @RequestParam("keyword") String keyword
+    public ApiResponse<Page<PublicOrganizationInfo>> searchOrganizationsByName(
+            @RequestParam("keyword") String keyword,
+            @RequestParam(name = "page", required = false, defaultValue = "0") int page,
+            @RequestParam(name = "size", required = false, defaultValue = "20") int size
     ) {
-        return organizationService.searchOrganizationsByName(keyword);
+        return organizationService.searchOrganizationsByNamePaginated(keyword, page, size);
     }
 
     /**

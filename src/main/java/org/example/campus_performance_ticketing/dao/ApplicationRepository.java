@@ -10,12 +10,12 @@ public interface ApplicationRepository extends JpaRepository<Application, Long> 
     List<Application> findByApplicantId(Long applicantId);
 
     /**
-     * 根据申请类型和状态查询申请记录
+     * 与 findByApplicationTypeAndStatus 对应的按申请时间倒序的变体
      * @param applicationType
      * @param status
      * @return
      */
-    List<Application> findByApplicationTypeAndStatus(String applicationType, Integer status);
+    List<Application> findByApplicationTypeAndStatusOrderByApplyTimeDesc(String applicationType, Integer status);
 
     /**
      * 根据申请人ID查询该用户所有申请记录，按申请时间倒序排列
@@ -55,7 +55,7 @@ public interface ApplicationRepository extends JpaRepository<Application, Long> 
      * @param applicationType
      * @return
      */
-    List<Application> findByApplicationType(String applicationType);
+    List<Application> findByApplicationTypeOrderByApplyTimeDesc(String applicationType);
 
     /**
      * 根据状态查询申请记录
@@ -64,6 +64,11 @@ public interface ApplicationRepository extends JpaRepository<Application, Long> 
      */
     List<Application> findByStatus(Integer status);
 
+    /**
+     * 按申请时间倒序查询指定状态的申请
+     */
+    List<Application> findByStatusOrderByApplyTimeDesc(Integer status);
+
 
     /**
      * 根据申请类型和目标ID列表查询申请记录
@@ -71,16 +76,26 @@ public interface ApplicationRepository extends JpaRepository<Application, Long> 
      * @param targetIds
      * @return
      */
-    List<Application> findByApplicationTypeAndTargetIdIn(String applicationType, List<Long> targetIds);
+    List<Application> findByApplicationTypeAndTargetIdInOrderByApplyTimeDesc(String applicationType, List<Long> targetIds);
 
     /**
-     * 根据申请类型、目标ID列表和状态查询申请记录
+     * 根据申请类型、目标 ID 列表和状态查询申请记录
      * @param applicationType
      * @param targetIds
      * @param status
      * @return
      */
     List<Application> findByApplicationTypeAndTargetIdInAndStatus(String applicationType, List<Long> targetIds, Integer status);
+
+    /**
+     * 按申请时间倒序查询指定类型、目标ID列表和状态的申请
+     */
+    List<Application> findByApplicationTypeAndTargetIdInAndStatusOrderByApplyTimeDesc(String applicationType, List<Long> targetIds, Integer status);
+
+    /**
+     * 查询所有申请并按申请时间倒序
+     */
+    List<Application> findAllByOrderByApplyTimeDesc();
 
     /**
      * 查找符合条件的申请（用于判断是否存在阻塞性申请）

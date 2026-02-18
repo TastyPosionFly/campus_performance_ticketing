@@ -16,9 +16,9 @@ VALUES
 -- 2. 插入组织信息  (leader_id对应user_info的id)
 INSERT INTO organization_info (name, description, avatar_url, leader_id, status, create_time, update_time)
 VALUES
-   ('计算机协会', '热爱编程和算法的社团组织', '/data/org-avatar/monalisa-200x200.jpg', 1, 1, NOW(), NOW()),
-   ('乐队之家', '面向全校音乐爱好者的乐团', '/data/org-avatar/monalisa-200x200.jpg',2, 1, NOW(), NOW()),
-   ('读书沙龙', '定期举行主题读书会的文学社团', '/data/org-avatar/monalisa-200x200.jpg',3, 1, NOW(), NOW());
+   ('计算机协会', '热爱编程和算法的社团组织', '/data/org_avatar/monalisa-200x200.jpg', 1, 1, NOW(), NOW()),
+   ('乐队之家', '面向全校音乐爱好者的乐团', '/data/org_avatar/monalisa-200x200.jpg',2, 1, NOW(), NOW()),
+   ('读书沙龙', '定期举行主题读书会的文学社团', '/data/org_avatar/monalisa-200x200.jpg',3, 1, NOW(), NOW());
 
 -- 3. 插入组织成员（MEMBER/LEADER/MANAGER）
 -- 三个组织，每个有两名成员，分别承担不同角色

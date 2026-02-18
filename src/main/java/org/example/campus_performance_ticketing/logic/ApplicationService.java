@@ -21,7 +21,6 @@ import org.example.campus_performance_ticketing.model.OrganizationInfo;
 import org.example.campus_performance_ticketing.model.Performance;
 import org.example.campus_performance_ticketing.model.UserInfo;
 import org.example.campus_performance_ticketing.util.AvatarUrlUtil;
-import org.example.campus_performance_ticketing.util.JsonHelper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,7 +41,6 @@ public class ApplicationService {
     private final OrganizationInfoRepository organizationInfoRepository;
     private final ApplicationTxService applicationTxService;
     private final PerformanceRepository performanceRepository;
-    private final JsonHelper jsonHelper;
 
     @Value("${file.base.url}")
     private String baseUrl;
@@ -71,18 +69,18 @@ public class ApplicationService {
                 return ApiResponse.fail("权限不足：仅管理员或组织负责人可查看待处理申请");
             }
 
-            List<Application> applicationList = new ArrayList<>();
+            List<Application> applicationList;
 
             if (isAdmin) {
                 // === 管理员逻辑 ===
                 if (applicationType != null && status != null) {
-                    applicationList = applicationRepository.findByApplicationTypeAndStatus(applicationType, status);
+                    applicationList = applicationRepository.findByApplicationTypeAndStatusOrderByApplyTimeDesc(applicationType, status);
                 } else if (applicationType != null) {
-                    applicationList = applicationRepository.findByApplicationType(applicationType);
+                    applicationList = applicationRepository.findByApplicationTypeOrderByApplyTimeDesc(applicationType);
                 } else if (status != null) {
-                    applicationList = applicationRepository.findByStatus(status);
+                    applicationList = applicationRepository.findByStatusOrderByApplyTimeDesc(status);
                 } else {
-                    applicationList = applicationRepository.findAll();
+                    applicationList = applicationRepository.findAllByOrderByApplyTimeDesc();
                 }
             } else {
                 // === 组织首领逻辑 (isOrgLeader) ===
@@ -92,11 +90,9 @@ public class ApplicationService {
                 List<Long> myOrgIds = organizationInfos.stream().map(OrganizationInfo::getId).toList();
 
                 if (status != null) {
-                    applicationList = applicationRepository
-                            .findByApplicationTypeAndTargetIdInAndStatus("JOIN_ORG", myOrgIds, status);
+                    applicationList = applicationRepository.findByApplicationTypeAndTargetIdInAndStatusOrderByApplyTimeDesc("JOIN_ORG", myOrgIds, status);
                 } else {
-                    applicationList = applicationRepository
-                            .findByApplicationTypeAndTargetIdIn("JOIN_ORG", myOrgIds);
+                    applicationList = applicationRepository.findByApplicationTypeAndTargetIdInOrderByApplyTimeDesc("JOIN_ORG", myOrgIds);
                 }
             }
 

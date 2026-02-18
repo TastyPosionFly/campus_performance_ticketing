@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.logging.Logger;
+import java.util.Objects;
 
 /**
  * 组织服务类
@@ -97,7 +98,7 @@ public class OrganizationService {
                     .orElseThrow(() -> new IllegalArgumentException("组织不存在"));
 
             Long currentLeaderId = organization.getLeader() == null ? null : organization.getLeader().getId();
-            boolean operatorIsLeader = (currentLeaderId != null && operator.getId().equals(currentLeaderId));
+            boolean operatorIsLeader = Objects.equals(currentLeaderId, operator.getId());
             boolean operatorIsAdmin = "ADMIN".equals(operator.getRole()) || "SUPER_ADMIN".equals(operator.getRole());
             String oldAvatarPath = organization.getAvatarUrl(); // 先记录旧头像路径
 
@@ -189,7 +190,7 @@ public class OrganizationService {
             Long currentLeaderId = organization.getLeader() == null ? null : organization.getLeader().getId();
 
             // 权限校验：必须是当前首领或管理员/超级管理员
-            boolean operatorIsLeader = (currentLeaderId != null && operator.getId().equals(currentLeaderId));
+            boolean operatorIsLeader = Objects.equals(currentLeaderId, operator.getId());
             boolean operatorIsAdmin = "ADMIN".equals(operator.getRole()) || "SUPER_ADMIN".equals(operator.getRole());
             if (!operatorIsLeader && !operatorIsAdmin) {
                 return ApiResponse.fail("只有当前首领或管理员才能更换组织首领");
@@ -431,6 +432,16 @@ public class OrganizationService {
 
             if (!user.equals(organization.getLeader()) && !"ADMIN".equals(user.getRole()) && !"SUPER_ADMIN".equals(user.getRole())) {
                 return ApiResponse.fail("只有组织首领或管理员才能解散组织");
+            }
+
+            // ====== 新增：防止重复提交相同组织的解散申请（在未审核通过之前只能提交一次） ======
+            List<Application> pendingDisband = applicationRepository.findByApplicationTypeAndTargetIdInAndStatus(
+                    "DISBAND_ORG",
+                    List.of(organization.getId()),
+                    1
+            );
+            if (pendingDisband != null && !pendingDisband.isEmpty()) {
+                return ApiResponse.fail("该组织已有解散申请正在审批中，不能重复提交");
             }
 
             // 提交审核

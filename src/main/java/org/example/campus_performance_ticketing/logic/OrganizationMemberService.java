@@ -273,7 +273,13 @@ public class OrganizationMemberService {
             List<UserOrganizationMemberDto> dtoList = new ArrayList<>();
             for (OrganizationMember member : members) {
 
-                if (member.getStatus() != 1) { // 仅返回正常状态的组织成员关系
+                // 仅返回正常状态的成员关系
+                if (member.getStatus() != 1) {
+                    continue;
+                }
+
+                // 仅返回正常状态的组织
+                if (member.getOrganization().getStatus() != 1) {
                     continue;
                 }
 

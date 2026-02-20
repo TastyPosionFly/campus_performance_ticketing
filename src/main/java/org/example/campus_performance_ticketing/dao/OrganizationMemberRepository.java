@@ -34,4 +34,13 @@ public interface OrganizationMemberRepository extends JpaRepository<Organization
      */
     void deleteByStatus(int status);
 
+    /**
+     * 根据组织 ID 和用户 ID 判断组织成员是否存在
+     * @param organizationId
+     * @param userId
+     * @return
+     */
+    boolean existsByOrganizationIdAndUserId(Long organizationId, Long userId);
+
+
 }

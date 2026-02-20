@@ -10,7 +10,9 @@ import java.time.LocalDateTime;
 public  class SessionCmd {
     @NotNull
     private Long venueId;
+    private String venueName;
     @NotNull @Future(message = "开始时间必须是将来") private LocalDateTime startTime;
     @NotNull @Future(message = "结束时间必须是将来") private LocalDateTime endTime;
     private Integer ticketTotal;
+    private Integer ticketSurplus;
 }

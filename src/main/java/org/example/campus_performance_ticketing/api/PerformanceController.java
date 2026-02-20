@@ -76,6 +76,7 @@ public class PerformanceController {
      * @param keyword    搜索关键词 (可选)
      * @param categoryId 分类ID (可选)
      * @param status     状态 (可选，默认建议传 1-已发布)
+     * @param venueName  场地名称（模糊匹配，选填）
      * @param page       页码 (默认 0)
      * @param size       每页大小 (默认 10)
      */
@@ -84,10 +85,11 @@ public class PerformanceController {
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) Integer categoryId,
             @RequestParam(required = false) Integer status,
+            @RequestParam(required = false) String venueName,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
 
-        return performanceSearchService.searchPerformances(keyword, categoryId, status, page, size);
+        return performanceSearchService.searchPerformances(keyword, categoryId, status, venueName, page, size);
     }
 
     /**

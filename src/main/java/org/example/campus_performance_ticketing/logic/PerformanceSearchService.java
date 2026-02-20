@@ -1,11 +1,15 @@
 package org.example.campus_performance_ticketing.logic;
 
+import jakarta.persistence.criteria.Join;
+import jakarta.persistence.criteria.JoinType;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.example.campus_performance_ticketing.dao.PerformanceRepository;
 import org.example.campus_performance_ticketing.logic.dto.ApiResponse;
 import org.example.campus_performance_ticketing.logic.dto.performance.PerformanceDetailDto;
 import org.example.campus_performance_ticketing.model.Performance;
+import org.example.campus_performance_ticketing.model.PerformanceSession;
+import org.example.campus_performance_ticketing.model.Venue;
 import org.example.campus_performance_ticketing.util.AvatarUrlUtil;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
@@ -34,33 +38,46 @@ public class PerformanceSearchService {
 
     /**
      * 分页查询演出列表
-     * 支持：关键词搜索、分类筛选、状态筛选
-     *
+     * 支持：关键词搜索、分类筛选、状态筛选、场地名称筛选
      * @param keyword    搜索关键词 (标题或描述)
      * @param categoryId 分类 ID
      * @param status     发布状态 (如: 1-已发布)
+     * @param venueName  场地名称（模糊匹配）
      * @param page       页码 (从0开始)
      * @param size       每页大小
      * @return 分页结果 DTO
      */
     @Transactional(readOnly = true)
-    public ApiResponse<Page<PerformanceDetailDto>> searchPerformances(String keyword, Integer categoryId, Integer status, int page, int size) {
+    public ApiResponse<Page<PerformanceDetailDto>> searchPerformances(
+            String keyword,
+            Integer categoryId,
+            Integer status,
+            String venueName,
+            int page,
+            int size
+    ) {
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
 
         Specification<Performance> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
-            // 1. 状态筛选 (如果不传，默认只查已发布的，或者可以查全部)
+            // 关键：如果 join 了 sessions，可能一场演出多场次导致重复，需要 distinct
+            query.distinct(true);
+
+            // 0) 默认排除状态：0-待审批, 4-审批拒绝, 5-草稿
+            predicates.add(cb.not(root.get("publishStatus").in(0, 4, 5)));
+
+            // 1) 状态筛选
             if (status != null) {
                 predicates.add(cb.equal(root.get("publishStatus"), status));
             }
 
-            // 2. 分类筛选
+            // 2) 分类筛选
             if (categoryId != null) {
                 predicates.add(cb.equal(root.get("categoryId"), categoryId));
             }
 
-            // 3. 关键词搜索 (标题 OR 描述)
+            // 3) 关键词搜索（标题 OR 描述）
             if (StringUtils.hasText(keyword)) {
                 String likePattern = "%" + keyword + "%";
                 Predicate titleLike = cb.like(root.get("title"), likePattern);
@@ -68,12 +85,20 @@ public class PerformanceSearchService {
                 predicates.add(cb.or(titleLike, descLike));
             }
 
+            // 4) 场地名称筛选：Performance -> sessions -> venue -> name
+            if (StringUtils.hasText(venueName)) {
+                Join<Performance, PerformanceSession> sessionJoin =
+                        root.join("sessions", JoinType.LEFT);
+                Join<PerformanceSession, Venue> venueJoin =
+                        sessionJoin.join("venue", JoinType.LEFT);
+
+                predicates.add(cb.like(venueJoin.get("name"), "%" + venueName + "%"));
+            }
+
             return cb.and(predicates.toArray(new Predicate[0]));
         };
 
         Page<Performance> performancePage = performanceRepository.findAll(spec, pageable);
-
-        // 转换 Entity -> DTO 并处理图片 URL
         Page<PerformanceDetailDto> dtoPage = performancePage.map(this::convertToDtoWithUrl);
 
         return ApiResponse.success(dtoPage);

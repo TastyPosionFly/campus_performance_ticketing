@@ -24,7 +24,9 @@ public class WebConfig implements WebMvcConfigurer {
                         "/swagger-ui/**",            // swagger 文档不拦截
                         "/v3/api-docs/**",            // swagger api-docs 不拦截
                         "/app/data/**",
-                        "/data/**"
+                        "/data/**",
+                        "/api/venues",
+                        "/api/performance/list"
                 );
     }
 }

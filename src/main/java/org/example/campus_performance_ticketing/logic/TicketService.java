@@ -24,6 +24,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -37,6 +38,9 @@ public class TicketService {
     private final PerformanceSessionRepository sessionRepository;
     private final UserRepository userRepository;
     private final OrganizationInfoRepository organizationInfoRepository;
+    private final OrganizationMemberRepository organizationMemberRepository;
+
+    private final static Logger logger = Logger.getLogger(TicketService.class.getName());
 
     @Value("${file.base.url}")
     private String fileBaseUrl;
@@ -161,10 +165,10 @@ public class TicketService {
     }
 
     /**
-     * 场地管理员扫码核销 (检票)
-     * @param operatorOpenId 操作员(管理员) OpenID
-     * @param ticketCode 票据核销码
-     * @return 核销成功提示
+     * 允许场地管理员、演出举办者、组织成员、超级管理员扫码核销 (检票)
+     * @param operatorOpenId
+     * @param ticketCode
+     * @return
      */
     @Transactional(rollbackOn = Exception.class)
     public ApiResponse<Void> checkInTicket(@NotBlank String operatorOpenId, String ticketCode) {
@@ -199,33 +203,36 @@ public class TicketService {
             return ApiResponse.fail("演出已结束，票据已过期");
         }
 
-        // 5. [完善] 校验操作员权限
-        // 只有：超级管理员(SUPER_ADMIN) 或 该场地的管理员(VENUE_ADMIN 且 ID 匹配) 才能核销
+        // 5. 校验操作员权限（改进：允许场地管理员、演出举办者、组织成员、超级管理员）
         boolean isSuperAdmin = "SUPER_ADMIN".equalsIgnoreCase(operator.getRole());
-        boolean isAuthorizedVenueManager = false;
+        boolean isAuthorized = false;
 
-        if (!isSuperAdmin) {
-            // 获取该场次对应的场地
+        if (isSuperAdmin) {
+            isAuthorized = true;
+        } else {
+            // 场地管理员检查
             Venue venue = session.getVenue();
             if (venue != null) {
-                // 注意：这里需要再次查询 Venue 详情，或者依赖 FetchType.LAZY 自动加载 Manager
-                // 为了稳妥，可以直接比较 session.getVenue().getManager().getId()
-                // 前提是 Hibernate Session 还在有效期内，或者直接从 DB 查关联
-
-                // 方式 A: 假如 session.getVenue() 已经是实体 (通常是 Proxy)
-                // 可能会触发 SQL 查询
                 UserInfo manager = venue.getManager();
                 if (manager != null && manager.getId().equals(operator.getId())) {
-                    isAuthorizedVenueManager = true;
+                    isAuthorized = true;
                 }
             } else {
                 log.error("数据异常：场次 [{}] 未关联有效场地", session.getId());
                 return ApiResponse.fail("数据异常：场次未关联场地");
             }
+
+            // 演出举办者（个人）或组织（组织成员）检查
+            if (!isAuthorized) {
+                Performance performance = session.getPerformance();
+                if (performance != null && checkIsOrganizer(operator, performance)) {
+                    isAuthorized = true;
+                }
+            }
         }
 
-        if (!isSuperAdmin && !isAuthorizedVenueManager) {
-            return ApiResponse.fail("无权核销：仅超级管理员或该场地的负责人可操作");
+        if (!isAuthorized) {
+            return ApiResponse.fail("无权核销：仅超级管理员、场地负责人、演出举办者及其组织成员可操作");
         }
 
         // 6. 执行核销
@@ -333,6 +340,42 @@ public class TicketService {
         return false;
     }
 
+
+
+    /**
+     * 用于检票的权限检查：除了超级管理员和场地管理员外，如果是演出组织者，还要考虑组织成员的权限
+     */
+    private boolean checkIsOrganizerForTicket(UserInfo user, Performance performance) {
+        String type = performance.getOrganizerType();
+        Long organizerId = performance.getOrganizerId();
+
+        if ("USER".equalsIgnoreCase(type)) {
+            return organizerId.equals(user.getId()) && user.getStatus() == 1;
+        }
+
+        if ("ORGANIZATION".equalsIgnoreCase(type)) {
+            Optional<OrganizationInfo> orgOpt = organizationInfoRepository.findById(organizerId);
+            if (orgOpt.isEmpty()) return false;
+
+            OrganizationInfo org = orgOpt.get();
+            if (org.getStatus() != 1) return false;
+
+            // 组织负责人始终可操作
+            if (org.getLeader() != null && org.getLeader().getId().equals(user.getId())) return true;
+
+            // 新增：如果用户是组织成员也可操作（使用 repository 快速判断，需新增 existsByIdAndMembers_Id）
+            try {
+                if (organizationMemberRepository.existsByOrganizationIdAndUserId(organizerId, user.getId())) {
+                    return true;
+                }
+            } catch (Exception e) {
+                logger.warning("权限检查异常：查询组织成员关系失败，组织ID: " + organizerId + ", 用户ID: " + user.getId() + ", 错误: " + e.getMessage());
+                return false;
+            }
+        }
+
+        return false;
+    }
 
     /**
      * 演出结束后，将该场次所有未核销的票据置为失效

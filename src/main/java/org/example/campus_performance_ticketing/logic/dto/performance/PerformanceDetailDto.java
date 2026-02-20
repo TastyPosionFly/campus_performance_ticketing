@@ -29,9 +29,11 @@ public class PerformanceDetailDto {
         dto.setSessions(performance.getSessions().stream().map(session -> {
             SessionCmd sessionCmd = new SessionCmd();
             sessionCmd.setVenueId(session.getVenue().getId());
+            sessionCmd.setVenueName(session.getVenue().getName());
             sessionCmd.setStartTime(session.getStartTime());
             sessionCmd.setEndTime(session.getEndTime());
             sessionCmd.setTicketTotal(session.getTicketTotal());
+            sessionCmd.setTicketSurplus(session.getTicketSurplus());
             return sessionCmd;
         }).collect(Collectors.toList()));
         dto.setStaff(performance.getStaffList().stream().map(staff -> {
@@ -47,12 +49,13 @@ public class PerformanceDetailDto {
 
 
     /**
-     * 发布状态: 0-待审批, 1-已发布, 2-已下架, 3-已结束, 4-审批拒绝, 5-草稿, 6-被征用/需重排
+     * 发布状态: 0-待审批, 1-已发布/未开演, 2-已下架, 3-已结束, 4-审批拒绝, 5-草稿, 6-被征用/需重排
      */
     public void setPublishStatus(Integer publishStatus) {
+        this.publishStatus = publishStatus;
         switch (publishStatus) {
             case 0 -> this.statusDesc = "待审批";
-            case 1 -> this.statusDesc = "已发布";
+            case 1 -> this.statusDesc = "未开演";
             case 2 -> this.statusDesc = "已下架";
             case 3 -> this.statusDesc = "已结束";
             case 4 -> this.statusDesc = "审批拒绝";

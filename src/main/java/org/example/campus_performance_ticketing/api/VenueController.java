@@ -12,6 +12,7 @@ import org.example.campus_performance_ticketing.model.VenueBlockedDay;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -42,12 +43,11 @@ public class VenueController {
      * @return 响应结果
      */
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ApiResponse<Void> createVenue(
+    public ApiResponse<Long> createVenue(
             @Valid @ModelAttribute CreateVenueDto dto,
             HttpServletRequest request
     ) {
         String openId = (String) request.getAttribute("openid");
-        // 调用 Service
         return venueService.createVenue(dto, openId);
     }
 
@@ -83,6 +83,16 @@ public class VenueController {
     }
 
 
+    /**
+     * 获取场地在指定日期范围内的演出日程
+     *
+     * URL: GET /api/venues/{venueId}/events?start=2024-01-01&end=2024-01-31
+     *
+     * @param venueId 场地 ID
+     * @param start   起始日期 (格式: yyyy-MM-dd)
+     * @param end     结束日期 (格式: yyyy-MM-dd)
+     * @return 场地在指定日期范围内的演出日程列表
+     */
     @GetMapping("/{venueId}/events")
     public ApiResponse<List<VenueEventDto>> getVenueEvents(
             @PathVariable Long venueId,
@@ -115,6 +125,29 @@ public class VenueController {
         return venueService.updateVenueBasicInfo(dto, openId);
     }
 
+    /**
+     * 上传场地照片（单张轮播图）
+     *
+     * URL: POST /api/venues/{venueId}/photos
+     * Content-Type: multipart/form-data
+     *
+     * @param venueId 场地 ID
+     * @param photoFile 上传的照片文件 (前端表单字段名为 "photoFiles")
+     * @param request HTTP 请求对象，用于获取 openId
+     * @return 响应结果
+     */
+    @PostMapping(path = "/{venueId}/photos", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<Void> uploadVenuePhoto(
+            @PathVariable("venueId") @NotNull Long venueId,
+            @RequestParam("photoFiles") MultipartFile photoFile,
+            HttpServletRequest request
+    ) {
+        String openId = (String) request.getAttribute("openid");
+        if (photoFile == null || photoFile.isEmpty()) {
+            return ApiResponse.fail("未上传图片或文件为空");
+        }
+        return venueService.addPhotoToVenue(venueId, photoFile, openId);
+    }
 
     /**
      * 删除场地

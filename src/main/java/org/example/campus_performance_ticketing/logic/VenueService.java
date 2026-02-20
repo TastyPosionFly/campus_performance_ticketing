@@ -1,6 +1,7 @@
 package org.example.campus_performance_ticketing.logic;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid; // 如果是 Spring Boot 2.x 可能是 javax.validation.Valid
 import jakarta.validation.constraints.NotBlank;
@@ -64,7 +65,7 @@ public class VenueService {
      * @param openId 操作人 ID
      */
     @Transactional(rollbackFor = Exception.class)
-    public ApiResponse<Void> createVenue(@Valid CreateVenueDto dto,
+    public ApiResponse<Long> createVenue(@Valid CreateVenueDto dto,
                                          @NotBlank String openId) {
 
         // 身份校验
@@ -92,7 +93,7 @@ public class VenueService {
         venue.setAddress(dto.getAddress());
         venue.setCapacity(dto.getCapacity());
         venue.setType(dto.getType());
-        venue.setStatus(2); // 默认正常 1:正常, 0:维护, 2:停用
+        venue.setStatus(0); // 默认正常 1:正常, 0:维护, 2:停用
 
         // 2. 处理封面图
         String coverPath;
@@ -110,61 +111,6 @@ public class VenueService {
             return ApiResponse.fail("封面图处理失败: " + e.getMessage());
         }
         venue.setCoverImage(coverPath);
-
-        // 改用对象列表，而不是 String 列表
-        List<VenuePhotoInfo> photoList = new ArrayList<>();
-
-        // 3.1 处理 URL 列表
-        if (dto.getPhotoUrlList() != null) {
-            for (String url : dto.getPhotoUrlList()) {
-                try {
-                    String localPath = FileUtil.saveImageFromUrl(url, venueAlbumUploadDir);
-                    if (localPath != null) {
-                        // 生成唯一ID，并记录
-                        photoList.add(new VenuePhotoInfo(
-                                UUID.randomUUID().toString(),
-                                localPath,
-                                UUID.randomUUID().toString()
-                        ));
-                    }
-                } catch (IOException e) {
-                    logger.warning("轮播图URL下载失败: " + url);
-                }
-            }
-        }
-
-        logger.info("照片列表为空吗？ " + (photoList.isEmpty() ? "是" : "否") + " URL数量: " + (dto.getPhotoUrlList() == null ? 0 : dto.getPhotoUrlList().size()));
-
-        // 3.2 处理文件列表
-        if (dto.getPhotoFiles() != null && !dto.getPhotoFiles().isEmpty()) {
-            for (MultipartFile file : dto.getPhotoFiles()) {
-                try {
-                    logger.info("正在处理轮播图文件: " + file.getOriginalFilename());
-                    String path = FileUtil.saveImage(file, venueAlbumUploadDir);
-                    if (path != null) {
-                        // 生成唯一ID，并记录原文件名
-                        photoList.add(new VenuePhotoInfo(
-                                UUID.randomUUID().toString(),
-                                path,
-                                file.getOriginalFilename()
-                        ));
-                    }
-                } catch (IOException e) {
-                    logger.warning("轮播图上传失败: " + file.getOriginalFilename());
-                }
-            }
-        }
-
-        logger.info("照片列表内容: " + photoList.stream().map(VenuePhotoInfo::getUrl).collect(Collectors.joining(", ")));
-
-        try {
-            String photoListJson = objectMapper.writeValueAsString(photoList);
-            venue.setPhotoList(photoListJson);
-        } catch (JsonProcessingException e) {
-            logger.warning("序列化轮播图列表失败: " + e.getMessage());
-            venue.setPhotoList("[]"); // 降级方案：保存空数组 JSON
-        }
-
 
         // 4. 设备信息处理
         // 修正点 1: 直接获取 String，不要 .toString()
@@ -197,12 +143,72 @@ public class VenueService {
             venue.setManager(manager);
         }
 
-        venueRepository.save(venue);
+        Venue saved = venueRepository.save(venue);
+        Long venueId = saved.getId();
 
-        ApiResponse<Void> response = ApiResponse.success(null);
+        ApiResponse<Long> response = ApiResponse.success(venueId);
         response.setMessage("创建场地成功: " + venue.getName());
 
         return response;
+    }
+
+    /**
+     * 给场地添加轮播图（单张上传）
+     *
+     * @param venueId   场地 ID
+     * @param photoFile 图片文件
+     * @param openId    操作人 ID
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public ApiResponse<Void> addPhotoToVenue(Long venueId, MultipartFile photoFile, String openId) {
+        Venue venue = venueRepository.findById(venueId).orElse(null);
+        if (venue == null) {
+            return ApiResponse.fail("场地不存在");
+        }
+
+        UserInfo operator = userRepository.findByOpenid(openId).orElse(null);
+        if (operator == null) {
+            return ApiResponse.fail("用户不存在");
+        }
+
+        boolean permitted = "SUPER_ADMIN".equals(operator.getRole())
+                || (venue.getManager() != null && operator.getId() != null && operator.getId().equals(venue.getManager().getId()))
+                || (venue.getCreator() != null && operator.getId() != null && operator.getId().equals(venue.getCreator().getId()));
+        if (!permitted) {
+            return ApiResponse.fail("没有权限上传相册图片");
+        }
+
+        String savedPath;
+        try {
+            savedPath = FileUtil.saveImage(photoFile, venueAlbumUploadDir);
+        } catch (IOException e) {
+            logger.warning("图片保存失败: " + e.getMessage());
+            return ApiResponse.fail("图片保存失败: " + e.getMessage());
+        }
+
+        List<VenuePhotoInfo> photos = new ArrayList<>();
+        String existing = venue.getPhotoList();
+        if (existing != null && !existing.trim().isEmpty()) {
+            try {
+                photos = objectMapper.readValue(existing, new TypeReference<List<VenuePhotoInfo>>() {});
+            } catch (JsonProcessingException e) {
+                logger.warning("解析现有轮播图列表失败，已回退到空列表: " + e.getMessage());
+                photos = new ArrayList<>();
+            }
+        }
+
+        VenuePhotoInfo item = new VenuePhotoInfo(UUID.randomUUID().toString(), savedPath, photoFile.getOriginalFilename());
+        photos.add(item);
+
+        try {
+            venue.setPhotoList(objectMapper.writeValueAsString(photos));
+        } catch (JsonProcessingException e) {
+            logger.warning("轮播图列表序列化失败: " + e.getMessage());
+            throw new RuntimeException("相册列表序列化失败", e);
+        }
+
+        venueRepository.save(venue);
+        return ApiResponse.success(null);
     }
 
     /**
@@ -437,6 +443,72 @@ public class VenueService {
         if (!isSuperAdmin) {
             logger.warning("用户尝试删除无权场地: " + openId);
             return ApiResponse.fail("您没有权限删除该场地");
+        }
+
+        // ===== 新增：删除相关物理文件（封面 + 轮播图） =====
+        try {
+            // 1) 删除封面图
+            if (StringUtils.hasText(venue.getCoverImage())) {
+                try {
+                    FileUtil.deletePhysicalFile(venue.getCoverImage());
+                } catch (Exception e) {
+                    logger.warning("删除场地封面图失败 ID=" + venue.getId() + " path=" + venue.getCoverImage() + " err=" + e.getMessage());
+                }
+            }
+
+            // 2) 删除轮播图中的文件（支持多种 photoList 格式）
+            String raw = venue.getPhotoList();
+            if (StringUtils.hasText(raw)) {
+                List<VenuePhotoInfo> photos = null;
+                // try parse as List<VenuePhotoInfo>
+                try {
+                    photos = objectMapper.readValue(raw, new TypeReference<List<VenuePhotoInfo>>() {});
+                } catch (Exception ignored) {}
+
+                // try parse as list of strings
+                if (photos == null) {
+                    try {
+                        List<String> urlList = objectMapper.readValue(raw, new TypeReference<List<String>>() {});
+                        if (urlList != null) {
+                            photos = new ArrayList<>();
+                            for (String u : urlList) photos.add(new VenuePhotoInfo(UUID.randomUUID().toString(), u == null ? "" : u, ""));
+                        }
+                    } catch (Exception ignored) {}
+                }
+
+                // fallback to map list
+                if (photos == null) {
+                    try {
+                        List<java.util.Map<String, Object>> list = objectMapper.readValue(raw, new TypeReference<List<java.util.Map<String,Object>>>() {});
+                        photos = new ArrayList<>();
+                        if (list != null) {
+                            for (java.util.Map<String,Object> m : list) {
+                                String id = m.getOrDefault("id", m.getOrDefault("ID", "")).toString();
+                                String url = m.getOrDefault("url", m.getOrDefault("path", m.getOrDefault("image", ""))).toString();
+                                String orig = m.getOrDefault("originalName", m.getOrDefault("original_name", "")).toString();
+                                photos.add(new VenuePhotoInfo(id, url, orig));
+                            }
+                        }
+                    } catch (Exception ignored) {}
+                }
+
+                if (photos != null) {
+                    for (VenuePhotoInfo photo : photos) {
+                        try {
+                            if (StringUtils.hasText(photo.getUrl())) {
+                                FileUtil.deletePhysicalFile(photo.getUrl());
+                            }
+                        } catch (Exception e) {
+                            logger.warning("删除轮播图文件失败 venueId=" + venue.getId() + " url=" + photo.getUrl() + " err=" + e.getMessage());
+                        }
+                    }
+                } else {
+                    logger.info("未能解析 venueId=" + venue.getId() + " 的 photoList，跳过逐项删除，已尝试多种解析策略");
+                }
+            }
+        } catch (Exception e) {
+            // 文件删除失败不影响后续的数据库删除流程，但要记录
+            logger.warning("删除场地关联文件时出现异常 venueId=" + venue.getId() + " err=" + e.getMessage());
         }
 
         // 删除数据库记录
@@ -813,5 +885,4 @@ public class VenueService {
         return null;
     }
 }
-
 

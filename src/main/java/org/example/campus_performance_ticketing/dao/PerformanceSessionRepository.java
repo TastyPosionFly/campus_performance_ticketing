@@ -77,4 +77,12 @@ public interface PerformanceSessionRepository extends JpaRepository<PerformanceS
      */
     @Query("SELECT COALESCE(SUM(s.ticketTotal - s.ticketSurplus), 0) FROM PerformanceSession s WHERE s.performance.id = :performanceId")
     Integer countTotalSoldTickets(@Param("performanceId") Long performanceId);
+
+    /**
+     * 检查某演出是否有未结束的场次（用于将超过结束时间的演出设置为已结束）
+     * @param performanceId
+     * @param time
+     * @return
+     */
+    boolean existsByPerformanceIdAndEndTimeGreaterThanEqual(Long performanceId, LocalDateTime time);
 }

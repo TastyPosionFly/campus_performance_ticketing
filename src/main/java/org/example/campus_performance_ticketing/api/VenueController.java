@@ -175,7 +175,7 @@ public class VenueController {
     }
 
     /**
-     * 屏蔽场馆并取消当天演出
+     * 屏蔽场馆并取消当天演出 （批量或单个）
      *
      * @param request  HTTP 请求对象
      * @param requestDto 屏蔽场馆的请求数据

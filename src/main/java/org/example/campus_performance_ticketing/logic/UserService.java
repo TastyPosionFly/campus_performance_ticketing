@@ -230,7 +230,8 @@ public class UserService {
      * 封禁 / 解封用户（含权限校验）
      */
     @Transactional
-    public ApiResponse<UserInfo> banOrUnbanUser(@NotBlank String openId,
+    public ApiResponse<UserInfo> banOrUnbanUser(String openId,
+                                                Long userId,
                                                 @NotNull Boolean ban,
                                                 @NotBlank String operatorRole) {
         try {
@@ -239,8 +240,25 @@ public class UserService {
                 return ApiResponse.fail("没有权限操作用户封禁");
             }
 
-            UserInfo user = userRepository.findByOpenid(openId)
-                    .orElseThrow(() -> new RuntimeException("用户不存在"));
+            UserInfo user;
+
+            if (userId != null) {
+                // 通过 userId 查询用户
+                user = userRepository.findById(userId)
+                        .orElseThrow(() -> new RuntimeException("用户不存在"));
+
+                user.setStatus(ban ? 0 : 1); // 0=封禁, 1=正常
+                UserInfo updated = userRepository.save(user);
+
+                logger.info("用户 ID {} 被 {} {}，操作者角色：{}", userId, ban ? "封禁" : "解封", updated.getStatus(), operatorRole);
+
+                return ApiResponse.success(updated);
+            } else if (openId != null) {
+                user = userRepository.findByOpenid(openId)
+                        .orElseThrow(() -> new RuntimeException("用户不存在"));
+            } else {
+                throw new IllegalArgumentException("必须提供 openId 或 userId 之一");
+            }
 
             user.setStatus(ban ? 0 : 1); // 0=封禁, 1=正常
             UserInfo updated = userRepository.save(user);

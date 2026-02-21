@@ -16,4 +16,12 @@ public interface PerformanceCommentRepository extends JpaRepository<PerformanceC
      * 统计某场演出的评论数
      */
     long countByPerformanceIdAndStatus(Long performanceId, Integer status);
+
+    /**
+     * 分页查询某场演出的所有评论（不区分状态），按时间倒序
+     */
+    Page<PerformanceComment> findByPerformanceIdOrderByCreateTimeDesc(
+            Long performanceId,
+            Pageable pageable
+    );
 }

@@ -4,14 +4,12 @@ import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.JoinType;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.example.campus_performance_ticketing.dao.OrganizationInfoRepository;
 import org.example.campus_performance_ticketing.dao.PerformanceRepository;
 import org.example.campus_performance_ticketing.dao.PerformanceStatsRepository;
 import org.example.campus_performance_ticketing.logic.dto.ApiResponse;
 import org.example.campus_performance_ticketing.logic.dto.performance.PerformanceDetailDto;
-import org.example.campus_performance_ticketing.model.Performance;
-import org.example.campus_performance_ticketing.model.PerformanceSession;
-import org.example.campus_performance_ticketing.model.PerformanceStats;
-import org.example.campus_performance_ticketing.model.Venue;
+import org.example.campus_performance_ticketing.model.*;
 import org.example.campus_performance_ticketing.util.AvatarUrlUtil;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
@@ -36,6 +34,7 @@ public class PerformanceSearchService {
 
     private final PerformanceRepository performanceRepository;
     private final PerformanceStatsRepository statsRepository;
+    private final OrganizationInfoRepository organizationRepository;
 
     @Value("${file.base.url}")
     private String baseUrl;
@@ -123,6 +122,7 @@ public class PerformanceSearchService {
 
         return ApiResponse.success(dtoPage);
     }
+
     /**
      * 获取演出详情
      *
@@ -136,6 +136,15 @@ public class PerformanceSearchService {
                     .orElseThrow(() -> new IllegalArgumentException("演出不存在: " + performanceId));
 
             PerformanceDetailDto dto = convertToDtoWithUrl(performance);
+
+            // 组织举办时，补全社长/负责人ID
+            if ("ORGANIZATION".equals(performance.getOrganizerType())) {
+                OrganizationInfo org = organizationRepository.findById(performance.getOrganizerId())
+                        .orElseThrow(() -> new IllegalArgumentException("组织不存在: " + performance.getOrganizerId()));
+                dto.setOrganizerLeaderId(org.getLeader().getId());
+            } else {
+                dto.setOrganizerLeaderId(null);
+            }
 
             // 补充统计数据：浏览量/评论数（查不到就返回0）
             PerformanceStats stats = statsRepository.findByPerformanceId(performanceId).orElse(null);

@@ -32,15 +32,17 @@ public class PerformanceCommentController {
     }
 
     /**
-     * 分页查询某演出的评论列表 (仅展示正常状态的评论)
+     * 分页查询某演出的评论列表 （可选状态过滤：0-隐藏 1-正常）
      * GET /api/comment/list?performanceId=1&page=0&size=10
      */
     @GetMapping("/list")
     public ApiResponse<Page<CommentDto>> getComments(
             @RequestParam Long performanceId,
+            @RequestParam(required = false) Integer status,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
-        return commentService.getComments(performanceId, page, size);
+            @RequestParam(defaultValue = "10") int size
+    ) {
+        return commentService.getComments(performanceId, status, page, size);
     }
 
     // --- 管理员接口 ---

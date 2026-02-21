@@ -26,14 +26,15 @@ public class AdminUserController {
     @PutMapping("/ban")
     public ApiResponse<UserInfo> banOrUnban(
             HttpServletRequest request,
-            @RequestParam String openId,
+            @RequestParam(required = false) String openId,
+            @RequestParam(required = false) Long userId,
             @RequestParam Boolean ban
     ) {
         // 从拦截器获取当前管理员角色
         String role = (String) request.getAttribute("role");
 
         // 权限校验在 Service 层完成
-        return userService.banOrUnbanUser(openId, ban, role);
+        return userService.banOrUnbanUser(openId, userId, ban, role);
     }
 
     /**

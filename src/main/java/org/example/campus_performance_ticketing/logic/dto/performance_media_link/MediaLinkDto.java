@@ -16,7 +16,6 @@ public class MediaLinkDto {
     private String externalKey;
     private String title;
     private Integer sortOrder;
-    private String appId;
     private String path;
     private LocalDateTime createTime;
 
@@ -30,7 +29,6 @@ public class MediaLinkDto {
         dto.setExternalKey(entity.getExternalKey());
         dto.setTitle(entity.getTitle());
         dto.setSortOrder(entity.getSortOrder());
-        dto.setAppId(entity.getAppId());
         dto.setPath(entity.getPath());
         dto.setCreateTime(entity.getCreateTime());
         return dto;

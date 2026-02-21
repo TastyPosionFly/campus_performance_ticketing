@@ -4,10 +4,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.example.campus_performance_ticketing.dao.PerformanceRepository;
-import org.example.campus_performance_ticketing.dao.PerformanceSessionRepository;
-import org.example.campus_performance_ticketing.dao.UserRepository;
-import org.example.campus_performance_ticketing.dao.VenueRepository;
+import org.example.campus_performance_ticketing.dao.*;
 import org.example.campus_performance_ticketing.logic.dto.ApiResponse;
 import org.example.campus_performance_ticketing.logic.dto.performance.*;
 import org.example.campus_performance_ticketing.model.*;
@@ -37,6 +34,7 @@ public class PerformanceUpdateService {
     private final PerformanceSessionRepository sessionRepository;
     private final UserRepository userRepository;
     private final VenueRepository venueRepository;
+    private final OrganizationInfoRepository organizationRepository;
 
     private static final Logger logger = Logger.getLogger(PerformanceUpdateService.class.getName());
     private static final int CANCELLATION_THRESHOLD_MINUTES = 60; // 时间限制阈值
@@ -54,7 +52,7 @@ public class PerformanceUpdateService {
      * 修改演出
      * 规则：
      * 1. 管理员 (ADMIN/SUPER_ADMIN): 可以修改所有信息。
-     * 2. 举办者 (Organizer): 只能修改场次时间 (延期)，不能修改基本信息、海报、状态或演职人员。
+     * 2. 举办者 (Organizer): 只能修改场次时间 (延期)或演职人员，不能修改基本信息、海报、状态.
      */
     @Transactional(rollbackFor = Exception.class)
     public ApiResponse<PerformanceDetailDto> updatePerformance(
@@ -84,7 +82,17 @@ public class PerformanceUpdateService {
                     .orElseThrow(() -> new IllegalArgumentException("指定的演出不存在"));
 
             // 4. 验证权限 (如果是举办者或管理员则通过，否则抛异常)
-            boolean isOrganizer = performance.getOrganizerId().equals(currentUser.getId());
+            boolean isOrganizer = false;
+
+            if ("USER".equals(performance.getOrganizerType())) {
+                // 个人举办：organizerId 就是用户id
+                isOrganizer = performance.getOrganizerId().equals(currentUser.getId());
+            } else if ("ORGANIZATION".equals(performance.getOrganizerType())) {
+                // 组织举办：organizerId 是组织id，需要查组织 leaderId
+                OrganizationInfo org = organizationRepository.findById(performance.getOrganizerId())
+                        .orElseThrow(() -> new IllegalArgumentException("组织不存在: " + performance.getOrganizerId()));
+                isOrganizer = org.getLeader().getId().equals(currentUser.getId());
+            }
             if (!isAdmin && !isOrganizer) {
                 throw new SecurityException("您没有权限修改此演出！");
             }
@@ -129,12 +137,10 @@ public class PerformanceUpdateService {
             }
 
             // =========================================================
-            // C. 演职人员修改 -> 仅管理员可用
+            // C. 演职人员修改 -> 仅管理员和组织管理员可用
             // =========================================================
             var staffList = updateRequest.getStaffList();
-            if (isAdmin && staffList != null) {
-                logger.info("管理员正在修改演职人员信息，演出ID=" + performance.getId());
-                logger.info("StaffList长度: " + staffList.size());
+            if (staffList != null) {
                 updateStaff(performance, staffList, photoMap);
             } else if (!isAdmin && staffList != null) {
                 throw new SecurityException("举办者无权修改演职人员信息，仅允许申请延期！");
@@ -165,8 +171,8 @@ public class PerformanceUpdateService {
                 .orElseThrow(() -> new IllegalArgumentException("指定的演出不存在"));
 
         boolean isAdmin = "ADMIN".equals(currentUser.getRole()) || "SUPER_ADMIN".equals(currentUser.getRole());
-        boolean isOrganizer = performance.getOrganizerId().equals(currentUser.getId());
-        if (!isAdmin && !isOrganizer) throw new SecurityException("无权限修改演出海报");
+
+        if (!isAdmin) throw new SecurityException("无权限修改演出海报");
 
         if (newPosterFile == null || newPosterFile.isEmpty()) throw new IllegalArgumentException("poster 不能为空");
 
@@ -194,7 +200,18 @@ public class PerformanceUpdateService {
                 .orElseThrow(() -> new IllegalArgumentException("指定的演出不存在"));
 
         boolean isAdmin = "ADMIN".equals(currentUser.getRole()) || "SUPER_ADMIN".equals(currentUser.getRole());
-        boolean isOrganizer = performance.getOrganizerId().equals(currentUser.getId());
+        boolean isOrganizer = false;
+
+        if ("USER".equals(performance.getOrganizerType())) {
+            // 个人举办：organizerId 就是用户id
+            isOrganizer = performance.getOrganizerId().equals(currentUser.getId());
+        } else if ("ORGANIZATION".equals(performance.getOrganizerType())) {
+            // 组织举办：organizerId 是组织id，需要查组织 leaderId
+            OrganizationInfo org = organizationRepository.findById(performance.getOrganizerId())
+                    .orElseThrow(() -> new IllegalArgumentException("组织不存在: " + performance.getOrganizerId()));
+            isOrganizer = org.getLeader().getId().equals(currentUser.getId());
+        }
+
         if (!isAdmin && !isOrganizer) throw new SecurityException("无权限修改演职人员图片");
 
         PerformanceStaff staff = performance.getStaffList().stream()
@@ -284,29 +301,6 @@ public class PerformanceUpdateService {
         }
     }
 
-
-    // 修改：接收 Map
-    private void updateStaffPhotos(PerformanceStaff existing, StaffCmd newStaff, Map<String, MultipartFile> photoMap) {
-        if (photoMap != null) {
-            // 逻辑：前端在 JSON 中 staffAvatar 字段传文件名，文件列表中传文件
-            String targetFileName = newStaff.getStaffAvatar();
-
-            // 如果 JSON 里没传文件名，说明不想更新图片，或者是想复用旧图
-            // 只有当文件名在上传列表中存在时，才进行更新
-            if (StringUtils.hasText(targetFileName) && photoMap.containsKey(targetFileName)) {
-                MultipartFile newFile = photoMap.get(targetFileName);
-                // 删除旧图
-                String oldAvatarPath = existing.getStaffAvatar();
-                if (oldAvatarPath != null && !oldAvatarPath.isEmpty()) {
-                    FileUtil.deletePhysicalFile(oldAvatarPath);
-                }
-                // 保存新图
-                saveAndSetAvatar(existing, newFile);
-            }
-        }
-        existing.setIntroduction(newStaff.getIntroduction());
-        existing.setSortOrder(newStaff.getSortOrder());
-    }
 
     private void saveAndSetAvatar(PerformanceStaff staff, MultipartFile file) {
         try {

@@ -239,18 +239,22 @@ public class PerformanceCommentService {
      * @return 分页评论列表
      */
     @Transactional(readOnly = true)
-    public ApiResponse<Page<CommentDto>> getComments(Long performanceId, int page, int size) {
+    public ApiResponse<Page<CommentDto>> getComments(Long performanceId, Integer status, int page, int size) {
         try {
-            // 按照发布时间倒序排列 (最新的在最上面)
             Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createTime"));
 
-            // 只查询状态为 1 (正常) 的评论
-            Page<PerformanceComment> commentPage = commentRepository
-                    .findByPerformanceIdAndStatusOrderByCreateTimeDesc(performanceId, 1, pageable);
+            Page<PerformanceComment> commentPage;
 
-            // 转换为 DTO (包含头像处理)
+            if (status == null) {
+                // 不区分状态查（管理员查看时使用）
+                commentPage = commentRepository.findByPerformanceIdOrderByCreateTimeDesc(performanceId, pageable);
+            } else {
+                // 按指定状态查
+                commentPage = commentRepository
+                        .findByPerformanceIdAndStatusOrderByCreateTimeDesc(performanceId, status, pageable);
+            }
+
             Page<CommentDto> dtoPage = commentPage.map(c -> CommentDto.from(c, baseUrl));
-
             return ApiResponse.success(dtoPage);
         } catch (Exception e) {
             log.error("查询评论列表失败: performanceId={}", performanceId, e);

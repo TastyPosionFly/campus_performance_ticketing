@@ -23,6 +23,7 @@ import org.example.campus_performance_ticketing.model.UserInfo;
 import org.example.campus_performance_ticketing.util.AvatarUrlUtil;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -72,8 +73,13 @@ public class ApplicationService {
                 return ApiResponse.fail("权限不足：仅管理员或组织负责人可查看待处理申请");
             }
 
-            org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(Math.max(0, page), Math.max(1, size));
-            org.springframework.data.domain.Page<Application> pageResult;
+            Pageable pageable =
+                    org.springframework.data.domain.PageRequest.of(
+                            Math.max(0, page),
+                            Math.max(1, size),
+                            org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "applyTime")
+                    );
+            Page<Application> pageResult;
 
             if (isAdmin) {
                 // 管理员：按 applicationType / status / both / all 支持分页

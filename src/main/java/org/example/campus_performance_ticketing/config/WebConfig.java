@@ -26,7 +26,8 @@ public class WebConfig implements WebMvcConfigurer {
                         "/app/data/**",
                         "/data/**",
                         "/api/venues",
-                        "/api/performance/list"
+                        "/api/performance/list",
+                        "/api/recommendation/list"
                 );
     }
 }

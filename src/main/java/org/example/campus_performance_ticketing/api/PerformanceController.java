@@ -30,43 +30,94 @@ public class PerformanceController {
     private final PerformanceSearchService performanceSearchService;
 
     /**
-     * 用户/社团提交演出申请 (包含图片上传)
-     * Content-Type: multipart/form-data
+     * 【方案：数据 JSON 提交，文件单独上传】
      *
-     * @param data JSON数据，包含演出的详细信息
-     * @param poster 海报图片文件
-     * @param staffPhotos 演职人员照片文件列表
+     * 1) 前端先 POST /api/performance/apply (application/json)
+     *    Body = CreatePerformanceCmd
+     *    返回 { data: { id: performanceId } }
+     *
+     * 2) 前端再上传海报
+     *    POST /api/performance/{id}/poster (multipart/form-data) part name=poster
+     *
+     * 3) 前端逐张上传演职人员照片
+     *    POST /api/performance/{id}/staff-photos (multipart/form-data) part name=staffPhotos
      */
-    @PostMapping(value = "/apply", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ApiResponse<Void> submitApplication(
+    @PostMapping(value = "/apply", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ApiResponse<Map<String, Object>> submitApplicationJson(
             HttpServletRequest request,
-            @RequestPart("data") @Valid CreatePerformanceCmd data,
-            @RequestPart(value = "poster", required = false) MultipartFile poster,
-            @RequestPart(value = "staffPhotos", required = false) List<MultipartFile> staffPhotos) {
-
+            @RequestBody @Valid CreatePerformanceCmd data
+    ) {
         String openId = (String) request.getAttribute("openid");
-        return performanceApplyService.submitPerformanceApplication(openId, data, poster, staffPhotos);
+        Long performanceId = performanceApplyService.createApplicationDraftReturnId(openId, data);
+        return ApiResponse.success(Map.of("id", performanceId));
+    }
+
+    /**
+     * 上传演职人员照片（单独上传，前端逐张上传也可）
+     */
+    @PostMapping(value = "/{id}/staff-photos", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<Void> uploadStaffPhoto(
+            HttpServletRequest request,
+            @PathVariable("id") Long performanceId,
+            @RequestPart("staffPhotos") MultipartFile staffPhoto
+    ) {
+        String openId = (String) request.getAttribute("openid");
+        performanceApplyService.appendStaffPhoto(openId, performanceId, staffPhoto);
+        return ApiResponse.success(null);
     }
 
 
     /**
-     * 修改演出，包括标题、描述、状态、场次等，支持上传海报图片和演职人员定妆照。
-     *
-     * @param request HTTP请求，包含用户的 openid 属性
-     * @param updateRequest 包含要更新的演出信息
-     *@param newPosterFile 可选的新海报图片文件
-     *@param staffPhotoFiles 可选的演职人员定妆照文件列表
-     *@return 更新后的演出详情
+     * 更新演出信息（JSON 提交）
+     * @param request
+     * @param updateRequest
+     * @return
      */
-    @PutMapping(value = "/update", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ApiResponse<PerformanceDetailDto> updatePerformance(
+    @PostMapping(value = "/update", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ApiResponse<PerformanceDetailDto> updatePerformanceJson(
             HttpServletRequest request,
-            @RequestPart("data") @Valid UpdatePerformanceRequestDto updateRequest, // 改为 RequestPart
-            @RequestPart(value = "newPosterFile", required = false) MultipartFile newPosterFile,
-            @RequestPart(value = "staffPhotoFiles", required = false) List<MultipartFile> staffPhotoFiles) { // 改为 List
-
+            @RequestBody @Valid UpdatePerformanceRequestDto updateRequest
+    ) {
         String userOpenId = (String) request.getAttribute("openid");
-        return performanceUpdateService.updatePerformance(userOpenId, updateRequest, newPosterFile, staffPhotoFiles);
+        return performanceUpdateService.updatePerformance(userOpenId, updateRequest, null, null);
+    }
+
+    /**
+     * 更新海报（单独上传）
+     * @param request
+     * @param performanceId
+     * @param poster
+     * @return
+     */
+    @PostMapping(value = "/{id}/poster", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<Void> updatePoster(
+            HttpServletRequest request,
+            @PathVariable("id") Long performanceId,
+            @RequestPart("poster") MultipartFile poster
+    ) {
+        String openId = (String) request.getAttribute("openid");
+        performanceUpdateService.updatePosterOnly(openId, performanceId, poster);
+        return ApiResponse.success(null);
+    }
+
+    /**
+     * 更新演职人员照片（单独上传，前端逐张上传也可）
+     * @param request
+     * @param performanceId
+     * @param staffId
+     * @param avatar
+     * @return
+     */
+    @PostMapping(value = "/{id}/staff/{staffId}/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<Void> updateStaffAvatar(
+            HttpServletRequest request,
+            @PathVariable("id") Long performanceId,
+            @PathVariable("staffId") Long staffId,
+            @RequestPart("avatar") MultipartFile avatar
+    ) {
+        String openId = (String) request.getAttribute("openid");
+        performanceUpdateService.updateStaffAvatarOnly(openId, performanceId, staffId, avatar);
+        return ApiResponse.success(null);
     }
 
     /**

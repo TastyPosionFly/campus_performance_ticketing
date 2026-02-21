@@ -23,6 +23,8 @@ import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
@@ -131,7 +133,8 @@ public class PerformanceUpdateService {
             // =========================================================
             var staffList = updateRequest.getStaffList();
             if (isAdmin && staffList != null) {
-                // 传入 photoMap
+                logger.info("管理员正在修改演职人员信息，演出ID=" + performance.getId());
+                logger.info("StaffList长度: " + staffList.size());
                 updateStaff(performance, staffList, photoMap);
             } else if (!isAdmin && staffList != null) {
                 throw new SecurityException("举办者无权修改演职人员信息，仅允许申请延期！");
@@ -153,6 +156,75 @@ public class PerformanceUpdateService {
         }
     }
 
+    @Transactional(rollbackFor = Exception.class)
+    public void updatePosterOnly(String userOpenId, Long performanceId, MultipartFile newPosterFile) {
+        UserInfo currentUser = userRepository.findByOpenid(userOpenId)
+                .orElseThrow(() -> new IllegalArgumentException("用户不存在"));
+
+        Performance performance = performanceRepository.findById(performanceId)
+                .orElseThrow(() -> new IllegalArgumentException("指定的演出不存在"));
+
+        boolean isAdmin = "ADMIN".equals(currentUser.getRole()) || "SUPER_ADMIN".equals(currentUser.getRole());
+        boolean isOrganizer = performance.getOrganizerId().equals(currentUser.getId());
+        if (!isAdmin && !isOrganizer) throw new SecurityException("无权限修改演出海报");
+
+        if (newPosterFile == null || newPosterFile.isEmpty()) throw new IllegalArgumentException("poster 不能为空");
+
+        String oldPath = performance.getPosterUrl();
+        try {
+            String newPath = FileUtil.saveImage(newPosterFile, posterDir);
+            performance.setPosterUrl(newPath);
+            performanceRepository.save(performance);
+
+            // 删除旧文件（只在新文件保存成功后）
+            if (StringUtils.hasText(oldPath)) {
+                FileUtil.deletePhysicalFile(oldPath);
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("海报更新失败: " + e.getMessage(), e);
+        }
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public void updateStaffAvatarOnly(String userOpenId, Long performanceId, Long staffId, MultipartFile avatar) {
+        UserInfo currentUser = userRepository.findByOpenid(userOpenId)
+                .orElseThrow(() -> new IllegalArgumentException("用户不存在"));
+
+        Performance performance = performanceRepository.findById(performanceId)
+                .orElseThrow(() -> new IllegalArgumentException("指定的演出不存在"));
+
+        boolean isAdmin = "ADMIN".equals(currentUser.getRole()) || "SUPER_ADMIN".equals(currentUser.getRole());
+        boolean isOrganizer = performance.getOrganizerId().equals(currentUser.getId());
+        if (!isAdmin && !isOrganizer) throw new SecurityException("无权限修改演职人员图片");
+
+        PerformanceStaff staff = performance.getStaffList().stream()
+                .filter(s -> s.getId().equals(staffId))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("staff 不存在"));
+
+        if (avatar == null || avatar.isEmpty()) {
+            return;
+        }
+
+        String oldPath = staff.getStaffAvatar();
+
+        try {
+            // 保存新头像
+            String newPath = FileUtil.saveImage(avatar, staffPhotoDir);
+            staff.setStaffAvatar(newPath);
+
+            // 持久化
+            performanceRepository.save(performance);
+
+            // 删除旧文件（新文件保存成功后再删）
+            if (StringUtils.hasText(oldPath)) {
+                FileUtil.deletePhysicalFile(oldPath);
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("演职人员头像更新失败: " + e.getMessage(), e);
+        }
+    }
+
     // ---------------- 私有方法 (保持不变) ----------------
 
     private void updatePoster(Performance performance, MultipartFile newPosterFile) throws Exception {
@@ -166,44 +238,48 @@ public class PerformanceUpdateService {
 
     private void updateStaff(Performance performance, List<StaffCmd> newStaffList, Map<String, MultipartFile> photoMap) {
         List<PerformanceStaff> existingStaff = performance.getStaffList();
-        // 删除逻辑保持不变...
-        existingStaff.removeIf(staff -> newStaffList.stream()
-                .noneMatch(newStaff -> staff.getStaffName().equals(newStaff.getStaffName())
-                        && staff.getStaffType().equals(newStaff.getStaffType())));
 
-        for (StaffCmd newStaff : newStaffList) {
-            PerformanceStaff existing = existingStaff.stream()
-                    .filter(staff -> staff.getStaffName().equals(newStaff.getStaffName())
-                            && staff.getStaffType().equals(newStaff.getStaffType()))
-                    .findFirst()
-                    .orElse(null);
+        // 1) 建一个 map：id -> existing entity
+        Map<Long, PerformanceStaff> existingById = existingStaff.stream()
+                .filter(s -> s.getId() != null)
+                .collect(Collectors.toMap(PerformanceStaff::getId, s -> s, (a, b) -> a));
 
-            if (existing != null) {
-                updateStaffPhotos(existing, newStaff, photoMap);
+        // 2) 处理删除：existing 里那些 id 在 new list 中不存在的，删除
+        Set<Long> newIds = newStaffList.stream()
+                .map(StaffCmd::getId)              // 需要 StaffCmd 有 id 字段
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        existingStaff.removeIf(s -> s.getId() != null && !newIds.contains(s.getId()));
+
+        // 3) 更新 / 新增
+        for (StaffCmd cmd : newStaffList) {
+            PerformanceStaff entity;
+
+            if (cmd.getId() != null && existingById.containsKey(cmd.getId())) {
+                // 更新
+                entity = existingById.get(cmd.getId());
             } else {
-                // 新增逻辑
-                PerformanceStaff newStaffEntity = new PerformanceStaff();
-                // ... 设置基本属性 ...
-                newStaffEntity.setPerformance(performance);
-                newStaffEntity.setStaffName(newStaff.getStaffName());
-                newStaffEntity.setStaffType(newStaff.getStaffType());
-                newStaffEntity.setIntroduction(newStaff.getIntroduction());
-                newStaffEntity.setSortOrder(newStaff.getSortOrder());
+                // 新增
+                entity = new PerformanceStaff();
+                entity.setPerformance(performance);
+                existingStaff.add(entity);
+            }
 
-                // 图片处理逻辑优化：通过文件名匹配
-                // 前端在 newStaff.getStaffAvatar() 传递文件名，我们去 map 里找文件
-                // 或者如果在更新场景，前端没传文件名，我们尝试用 "姓名.jpg" 等约定，
-                // 但最稳妥的是前端传递 staffAvatar="lisi.jpg" 且文件名为 "lisi.jpg"
-                if (photoMap != null) {
-                    // 优先匹配前端指定的 avatar 字段 (作为文件名)
-                    String targetFileName = newStaff.getStaffAvatar();
-                    // 如果前端没传 avatar 字段，也可以尝试用 staffName 匹配(可选策略，视前端实现而定)
-                    // 这里假设前端在 JSON 里填了文件名
-                    if (StringUtils.hasText(targetFileName) && photoMap.containsKey(targetFileName)) {
-                        saveAndSetAvatar(newStaffEntity, photoMap.get(targetFileName));
-                    }
+            // 基本字段都允许更新
+            entity.setStaffName(cmd.getStaffName());
+            entity.setStaffType(cmd.getStaffType());
+            entity.setIntroduction(cmd.getIntroduction());
+            entity.setSortOrder(cmd.getSortOrder());
+
+            // 头像：仅当 photoMap 有对应文件时才更新并删除旧文件（可复用你现有逻辑）
+            if (photoMap != null) {
+                String targetFileName = cmd.getStaffAvatar(); // 前端这里放文件名
+                if (StringUtils.hasText(targetFileName) && photoMap.containsKey(targetFileName)) {
+                    String old = entity.getStaffAvatar();
+                    saveAndSetAvatar(entity, photoMap.get(targetFileName));
+                    if (StringUtils.hasText(old)) FileUtil.deletePhysicalFile(old);
                 }
-                existingStaff.add(newStaffEntity);
             }
         }
     }
@@ -273,10 +349,28 @@ public class PerformanceUpdateService {
                     .orElse(null);
 
             if (existing != null) {
-                // [更新逻辑] (开始时间未变，仅更新结束时间或票数)
-                // 这里不需要复杂的冲突检查，因为开始时间没变，通常不会撞到别人的新时间（除非延长了结束时间，严格来说也应该查，但此处简化）
                 existing.setEndTime(newSession.getEndTime());
-                existing.setTicketTotal(newSession.getTicketTotal());
+
+                Integer oldTotal = existing.getTicketTotal();
+                Integer oldSurplus = existing.getTicketSurplus();
+                Integer newTotal = newSession.getTicketTotal();
+
+                // null 保护（按你项目字段定义可适当简化）
+                oldTotal = (oldTotal == null ? 0 : oldTotal);
+                oldSurplus = (oldSurplus == null ? 0 : oldSurplus);
+                newTotal = (newTotal == null ? 0 : newTotal);
+
+                int delta = newTotal - oldTotal; // 新增票数（可能为负表示减少）
+
+                // ✅ 规则：新增票数 => 剩余票数在原基础上增加 delta
+                int newSurplus = oldSurplus + delta;
+
+                // 安全边界：剩余不能小于0，也不能大于总票数
+                if (newSurplus < 0) newSurplus = 0;
+                if (newSurplus > newTotal) newSurplus = newTotal;
+
+                existing.setTicketTotal(newTotal);
+                existing.setTicketSurplus(newSurplus);
             } else {
                 // [新增逻辑] (或者是延期导致了开始时间变更)
 
@@ -306,6 +400,7 @@ public class PerformanceUpdateService {
                 session.setEndTime(newSession.getEndTime());
                 session.setTicketTotal(newSession.getTicketTotal());
                 session.setTicketSurplus(newSession.getTicketTotal()); // 新增时剩余票数等于总票数
+                session.setStatus(0);
 
                 existingSessions.add(session);
             }

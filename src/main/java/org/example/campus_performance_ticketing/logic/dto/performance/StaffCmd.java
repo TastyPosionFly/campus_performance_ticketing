@@ -5,6 +5,7 @@ import lombok.Data;
 
 @Data
 public  class StaffCmd {
+    private Long id; // 可选，更新时提供，创建时不提供
     private Long userId; // 可选，系统用户ID
 
     @NotBlank

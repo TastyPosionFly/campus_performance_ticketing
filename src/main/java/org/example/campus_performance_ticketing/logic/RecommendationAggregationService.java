@@ -76,7 +76,17 @@ public class RecommendationAggregationService {
                     PerformanceCardDto dto = convertToCardDto(p);
                     // 这里的 stats 已经是查询出来的热度数据，直接填进去
                     dto.fillStats(stats);
-                    // dto.setRecommendationTag("热度飙升"); // 可选
+                    if (dto.getHotScore() >= 800) {
+                        dto.setRecommendationTag("热度飙升");
+                    } else if (dto.getHotScore() >= 500) {
+                        dto.setRecommendationTag("热度较高");
+                    } else if (dto.getHotScore() > 0) {
+                        dto.setRecommendationTag("新起之秀");
+                    } else if (dto.getHotScore() == 0) {
+                        dto.setRecommendationTag("崭新发布");
+                    } else {
+                        dto.setRecommendationTag("");
+                    }
                     resultList.add(dto);
                     existingIds.add(p.getId());
                 }

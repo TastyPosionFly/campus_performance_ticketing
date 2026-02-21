@@ -5,10 +5,12 @@ import jakarta.persistence.criteria.JoinType;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.example.campus_performance_ticketing.dao.PerformanceRepository;
+import org.example.campus_performance_ticketing.dao.PerformanceStatsRepository;
 import org.example.campus_performance_ticketing.logic.dto.ApiResponse;
 import org.example.campus_performance_ticketing.logic.dto.performance.PerformanceDetailDto;
 import org.example.campus_performance_ticketing.model.Performance;
 import org.example.campus_performance_ticketing.model.PerformanceSession;
+import org.example.campus_performance_ticketing.model.PerformanceStats;
 import org.example.campus_performance_ticketing.model.Venue;
 import org.example.campus_performance_ticketing.util.AvatarUrlUtil;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,8 +24,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import jakarta.persistence.criteria.Predicate;
-import java.util.ArrayList;
-import java.util.List;
+
+import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -32,6 +35,7 @@ import java.util.stream.Collectors;
 public class PerformanceSearchService {
 
     private final PerformanceRepository performanceRepository;
+    private final PerformanceStatsRepository statsRepository;
 
     @Value("${file.base.url}")
     private String baseUrl;
@@ -60,38 +64,24 @@ public class PerformanceSearchService {
 
         Specification<Performance> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
-
-            // 关键：如果 join 了 sessions，可能一场演出多场次导致重复，需要 distinct
             query.distinct(true);
 
-            // 0) 默认排除状态：0-待审批, 4-审批拒绝, 5-草稿
             predicates.add(cb.not(root.get("publishStatus").in(0, 4, 5)));
 
-            // 1) 状态筛选
-            if (status != null) {
-                predicates.add(cb.equal(root.get("publishStatus"), status));
-            }
+            if (status != null) predicates.add(cb.equal(root.get("publishStatus"), status));
+            if (categoryId != null) predicates.add(cb.equal(root.get("categoryId"), categoryId));
 
-            // 2) 分类筛选
-            if (categoryId != null) {
-                predicates.add(cb.equal(root.get("categoryId"), categoryId));
-            }
-
-            // 3) 关键词搜索（标题 OR 描述）
             if (StringUtils.hasText(keyword)) {
                 String likePattern = "%" + keyword + "%";
-                Predicate titleLike = cb.like(root.get("title"), likePattern);
-                Predicate descLike = cb.like(root.get("description"), likePattern);
-                predicates.add(cb.or(titleLike, descLike));
+                predicates.add(cb.or(
+                        cb.like(root.get("title"), likePattern),
+                        cb.like(root.get("description"), likePattern)
+                ));
             }
 
-            // 4) 场地名称筛选：Performance -> sessions -> venue -> name
             if (StringUtils.hasText(venueName)) {
-                Join<Performance, PerformanceSession> sessionJoin =
-                        root.join("sessions", JoinType.LEFT);
-                Join<PerformanceSession, Venue> venueJoin =
-                        sessionJoin.join("venue", JoinType.LEFT);
-
+                Join<Performance, PerformanceSession> sessionJoin = root.join("sessions", JoinType.LEFT);
+                Join<PerformanceSession, Venue> venueJoin = sessionJoin.join("venue", JoinType.LEFT);
                 predicates.add(cb.like(venueJoin.get("name"), "%" + venueName + "%"));
             }
 
@@ -99,11 +89,40 @@ public class PerformanceSearchService {
         };
 
         Page<Performance> performancePage = performanceRepository.findAll(spec, pageable);
-        Page<PerformanceDetailDto> dtoPage = performancePage.map(this::convertToDtoWithUrl);
+
+        // 1) 收集本页 performanceId
+        List<Long> ids = performancePage.getContent().stream()
+                .map(Performance::getId)
+                .filter(Objects::nonNull)
+                .toList();
+
+        // 2) 批量查 stats -> map
+        Map<Long, PerformanceStats> statsMap = ids.isEmpty()
+                ? Collections.emptyMap()
+                : statsRepository.findByPerformanceIdIn(ids).stream()
+                .collect(Collectors.toMap(
+                        s -> s.getPerformance().getId(),
+                        Function.identity(),
+                        (a, b) -> a
+                ));
+
+        // 3) 转 DTO 时回填 viewCount/commentCount
+        Page<PerformanceDetailDto> dtoPage = performancePage.map(p -> {
+            PerformanceDetailDto dto = convertToDtoWithUrl(p);
+
+            PerformanceStats stats = statsMap.get(p.getId());
+            if (stats != null) {
+                dto.setViewCount(stats.getViewCount());
+                dto.setCommentCount(stats.getCommentCount());
+            } else {
+                dto.setViewCount(0L);
+                dto.setCommentCount(0L);
+            }
+            return dto;
+        });
 
         return ApiResponse.success(dtoPage);
     }
-
     /**
      * 获取演出详情
      *
@@ -117,6 +136,19 @@ public class PerformanceSearchService {
                     .orElseThrow(() -> new IllegalArgumentException("演出不存在: " + performanceId));
 
             PerformanceDetailDto dto = convertToDtoWithUrl(performance);
+
+            // 补充统计数据：浏览量/评论数（查不到就返回0）
+            PerformanceStats stats = statsRepository.findByPerformanceId(performanceId).orElse(null);
+            if (stats != null) {
+                dto.setViewCount(stats.getViewCount() == null ? 0L : stats.getViewCount());
+                dto.setCommentCount(stats.getCommentCount() == null ? 0L : stats.getCommentCount());
+                dto.setHotScore(stats.getHotScore() == null ? 0.0 : stats.getHotScore());
+            } else {
+                dto.setViewCount(0L);
+                dto.setCommentCount(0L);
+                dto.setHotScore(0.0);
+            }
+
             return ApiResponse.success(dto);
         } catch (Exception e) {
             return ApiResponse.fail("获取演出详情失败: " + e.getMessage());

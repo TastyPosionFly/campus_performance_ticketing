@@ -18,6 +18,9 @@ public class PerformanceDetailDto {
     private String statusDesc;
     private List<SessionCmd> sessions;
     private List<StaffCmd> staff;
+    private Long viewCount;
+    private Long commentCount;
+    private Double hotScore;
 
     public static PerformanceDetailDto from(Performance performance) {
         PerformanceDetailDto dto = new PerformanceDetailDto();
@@ -38,6 +41,7 @@ public class PerformanceDetailDto {
         }).collect(Collectors.toList()));
         dto.setStaff(performance.getStaffList().stream().map(staff -> {
             StaffCmd staffCmd = new StaffCmd();
+            staffCmd.setId(staff.getId());
             staffCmd.setStaffName(staff.getStaffName());
             staffCmd.setStaffType(staff.getStaffType());
             staffCmd.setStaffAvatar(staff.getStaffAvatar());

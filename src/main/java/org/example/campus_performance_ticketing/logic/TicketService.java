@@ -1,11 +1,14 @@
 package org.example.campus_performance_ticketing.logic;
 
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.example.campus_performance_ticketing.dao.*;
 import org.example.campus_performance_ticketing.logic.dto.ApiResponse;
 import org.example.campus_performance_ticketing.logic.dto.ticket.TicketAttendanceDTO;
@@ -20,7 +23,12 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
+import java.awt.*;
+import org.apache.poi.ss.usermodel.Font;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -134,33 +142,59 @@ public class TicketService {
         return ApiResponse.success(convertToDetailDTO(ticket));
     }
 
-     /** 分页查询当前用户的票夹列表
-     * @param openId 用户标识
-     * @param page 页码 (0开始)
-     * @param size 每页大小
-     * @param status (可选) 筛选状态：0-已预约 1-已核销 2-已取消 3-已失效，传 null 查所有
+
+    /**
+     * 获取我的票夹列表 (分页)
+     * @param openId
+     * @param page
+     * @param size
+     * @param performanceId
+     * @param status
+     * @param sortByUpcomingStartTime
+     * @return
      */
-    public ApiResponse<Page<TicketDetailDTO>> getMyTickets(String openId, int page, int size, Integer status) {
-        // 1. 获取用户
+    public ApiResponse<Page<TicketDetailDTO>> getMyTickets(
+            String openId,
+            int page,
+            int size,
+            Long performanceId,
+            Integer status,
+            Boolean sortByUpcomingStartTime
+    ) {
         UserInfo user = userRepository.findByOpenid(openId).orElse(null);
-        if (user == null) {
-            return ApiResponse.fail("用户不存在");
-        }
+        if (user == null) return ApiResponse.fail("用户不存在");
 
-        // 2. 构建分页参数 (按创建时间倒序)
-        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
-
-        // 3. 查询 DB
+        Pageable pageable;
         Page<Ticket> ticketPage;
-        if (status != null) {
-            ticketPage = ticketRepository.findByUserIdAndStatusOrderByCreatedAtDesc(user.getId(), status, pageable);
+
+        boolean sortUpcoming = Boolean.TRUE.equals(sortByUpcomingStartTime);
+
+        if (sortUpcoming) {
+            pageable = PageRequest.of(page, size);
+            ticketPage = ticketRepository.findMyTicketsOrderByUpcomingStartTime(
+                    user.getId(), performanceId, status, pageable
+            );
         } else {
-            ticketPage = ticketRepository.findByUserIdOrderByCreatedAtDesc(user.getId(), pageable);
+            pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+
+            if (status != null && performanceId != null) {
+                ticketPage = ticketRepository.findByUserIdAndPerformanceIdAndStatusOrderByCreatedAtDesc(
+                        user.getId(), performanceId, status, pageable
+                );
+            } else if (status != null) {
+                ticketPage = ticketRepository.findByUserIdAndStatusOrderByCreatedAtDesc(
+                        user.getId(), status, pageable
+                );
+            } else if (performanceId != null) {
+                ticketPage = ticketRepository.findByUserIdAndPerformanceIdOrderByCreatedAtDesc(
+                        user.getId(), performanceId, pageable
+                );
+            } else {
+                ticketPage = ticketRepository.findByUserIdOrderByCreatedAtDesc(user.getId(), pageable);
+            }
         }
 
-        // 4. 转换为 DTO
         Page<TicketDetailDTO> dtoPage = ticketPage.map(this::convertToDetailDTO);
-
         return ApiResponse.success(dtoPage);
     }
 
@@ -225,7 +259,7 @@ public class TicketService {
             // 演出举办者（个人）或组织（组织成员）检查
             if (!isAuthorized) {
                 Performance performance = session.getPerformance();
-                if (performance != null && checkIsOrganizer(operator, performance)) {
+                if (performance != null && checkIsOrganizerForTicket(operator, performance)) {
                     isAuthorized = true;
                 }
             }
@@ -248,13 +282,20 @@ public class TicketService {
 
 
     /**
-     * 获取某场次实际到场人员名单
-     * 权限：仅 演出组织者(个人/组织负责人)、管理员、超级管理员 可查看
-     * @param operatorOpenId 操作员 OpenID
-     * @param sessionId 场次 ID
+     * 获取某场次实际到场人员名单（状态为 1 已核销的票）
+     * @param operatorOpenId
+     * @param sessionId
+     * @param page
+     * @param size
+     * @return
      */
-    public ApiResponse<List<TicketAttendanceDTO>> getAttendanceList(@NotBlank String operatorOpenId,
-                                                                    @NotNull Long sessionId) {
+    @Transactional
+    public ApiResponse<Page<TicketAttendanceDTO>> getAttendanceList(
+            @NotBlank String operatorOpenId,
+            @NotNull Long sessionId,
+            int page,
+            int size
+    ) {
         // 1. 基础校验
         UserInfo operator = userRepository.findByOpenid(operatorOpenId).orElse(null);
         if (operator == null) return ApiResponse.fail("操作员不存在");
@@ -262,15 +303,73 @@ public class TicketService {
         PerformanceSession session = sessionRepository.findById(sessionId).orElse(null);
         if (session == null) return ApiResponse.fail("场次不存在");
 
-        // 2. 权限校验逻辑
+        // 2. 权限校验逻辑（保持原样）
         boolean hasPermission = false;
 
-        // 2.1 检查是否为全局管理员
         if ("ADMIN".equalsIgnoreCase(operator.getRole()) || "SUPER_ADMIN".equalsIgnoreCase(operator.getRole())) {
             hasPermission = true;
+        } else {
+            Performance performance = session.getPerformance();
+            if (performance != null) hasPermission = checkIsOrganizer(operator, performance);
         }
-        // 2.2 检查是否为演出组织者
-        else {
+
+        if (!hasPermission) {
+            return ApiResponse.fail("无权查看：您不是该演出的组织者或管理员");
+        }
+
+        // 3. 分页查询：状态为 1 (已核销)
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "checkInTime"));
+        Page<Ticket> ticketPage = ticketRepository.findBySessionIdAndStatus(sessionId, 1, pageable);
+
+        // 4. 转换为 DTO（用 Page.map）
+        Page<TicketAttendanceDTO> dtoPage = ticketPage.map(ticket -> {
+            UserInfo user = ticket.getUser();
+            TicketAttendanceDTO dto = new TicketAttendanceDTO();
+
+            dto.setTicketId(ticket.getId());
+            dto.setUserId(user.getId());
+            dto.setNickname(user.getNickname());
+            dto.setAvatar(AvatarUrlUtil.buildAvatarUrl(user.getAvatar(), fileBaseUrl));
+            dto.setMajor(user.getMajor());
+            dto.setCollege(user.getCollege());
+            dto.setStatus(user.getStatus());
+            dto.setUserIdentity(user.getUserIdentity());
+
+            dto.setStudentNo(user.getStudentNo());
+            dto.setCheckInTime(ticket.getCheckInTime());
+
+            return dto;
+        });
+
+        return ApiResponse.success(dtoPage);
+    }
+
+    /**
+     * 导出某场次实际到场人员名单为 Excel 文件
+     * 权限：同 getAttendanceList
+     * @param operatorOpenId 操作员 OpenID
+     * @param sessionId 场次 ID
+     * @param response HTTP 响应对象，用于写出 Excel 文件
+     */
+    public void exportAttendanceExcelForWeixin(String operatorOpenId, Long sessionId, HttpServletResponse response) throws Exception {
+
+        // 1. 基础校验 + 权限校验（自包含）
+        UserInfo operator = userRepository.findByOpenid(operatorOpenId).orElse(null);
+        if (operator == null) {
+            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "操作员不存在");
+            return;
+        }
+
+        PerformanceSession session = sessionRepository.findById(sessionId).orElse(null);
+        if (session == null) {
+            response.sendError(HttpServletResponse.SC_BAD_REQUEST, "场次不存在");
+            return;
+        }
+
+        boolean hasPermission = false;
+        if ("ADMIN".equalsIgnoreCase(operator.getRole()) || "SUPER_ADMIN".equalsIgnoreCase(operator.getRole())) {
+            hasPermission = true;
+        } else {
             Performance performance = session.getPerformance();
             if (performance != null) {
                 hasPermission = checkIsOrganizer(operator, performance);
@@ -278,35 +377,75 @@ public class TicketService {
         }
 
         if (!hasPermission) {
-            return ApiResponse.fail("无权查看：您不是该演出的组织者或管理员");
+            response.sendError(HttpServletResponse.SC_FORBIDDEN, "无权导出：您不是该演出的组织者或管理员");
+            return;
         }
 
-        // 3. 查询数据：状态为 1 (已核销) 的票据
-        // 使用 JOIN FETCH 查询以优化性能
+        // 2. 查询数据：状态=1(已核销) 的票据（全量，用于导出）
         List<Ticket> tickets = ticketRepository.findBySessionIdAndStatusWithUser(sessionId, 1);
 
-        // 4. 转换为 DTO
-        List<TicketAttendanceDTO> dtoList = tickets.stream().map(ticket -> {
-            UserInfo user = ticket.getUser();
-            TicketAttendanceDTO dto = new TicketAttendanceDTO();
+        // 3. 响应头
+        String ts = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
+        String fileName = "attendance_session_" + sessionId + "_" + ts + ".xlsx";
+        String encoded = URLEncoder.encode(fileName, StandardCharsets.UTF_8).replace("+", "%20");
 
-            // 复制基础信息
-            dto.setUserId(user.getId());
-            dto.setNickname(user.getNickname());
-            dto.setAvatar(AvatarUrlUtil.buildAvatarUrl(user.getAvatar(), fileBaseUrl));
-            dto.setMajor(user.getMajor());
-            dto.setCollege(user.getCollege());
-            dto.setStatus(user.getStatus()); // 会自动设置 statusDesc
-            dto.setUserIdentity(user.getUserIdentity()); // 会自动设置 userIdentityDesc
+        response.setCharacterEncoding("UTF-8");
+        response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        response.setHeader("Content-Disposition", "attachment; filename*=UTF-8''" + encoded);
+        response.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
 
-            // 设置特有信息
-            dto.setStudentNo(user.getStudentNo()); // 学号
-            dto.setCheckInTime(ticket.getCheckInTime()); // 签到时间
+        // 4. 写 Excel（直接从 tickets 写，不依赖 DTO 方法）
+        try (Workbook wb = new XSSFWorkbook()) {
+            Sheet sheet = wb.createSheet("attendance");
 
-            return dto;
-        }).collect(Collectors.toList());
+            CellStyle headerStyle = wb.createCellStyle();
+            org.apache.poi.ss.usermodel.Font headerFont = wb.createFont();
+            headerFont.setBold(true);
+            headerStyle.setFont(headerFont);
 
-        return ApiResponse.success(dtoList);
+            Row header = sheet.createRow(0);
+            String[] headers = new String[] { "序号", "昵称", "学号", "学院", "专业", "身份", "签到时间" };
+            for (int i = 0; i < headers.length; i++) {
+                Cell c = header.createCell(i);
+                c.setCellValue(headers[i]);
+                c.setCellStyle(headerStyle);
+            }
+
+            int rowIdx = 1;
+            for (int i = 0; i < tickets.size(); i++) {
+                Ticket ticket = tickets.get(i);
+                UserInfo user = ticket.getUser();
+
+                Row row = sheet.createRow(rowIdx++);
+
+                // 序号
+                row.createCell(0).setCellValue(i + 1);
+
+                // 昵称/学号/学院/专业
+                row.createCell(1).setCellValue(safeStr(user != null ? user.getNickname() : null));
+                row.createCell(2).setCellValue(safeStr(user != null ? user.getStudentNo() : null));
+                row.createCell(3).setCellValue(safeStr(user != null ? user.getCollege() : null));
+                row.createCell(4).setCellValue(safeStr(user != null ? user.getMajor() : null));
+
+                // 身份（复用你 DTO 的描述逻辑：用 TicketAttendanceDTO 来生成 desc）
+                TicketAttendanceDTO tmp = new TicketAttendanceDTO();
+                tmp.setUserIdentity(user != null ? user.getUserIdentity() : null);
+                row.createCell(5).setCellValue(safeStr(tmp.getUserIdentityDesc()));
+
+                // 签到时间（核销时间）
+                row.createCell(6).setCellValue(ticket.getCheckInTime() == null ? "" : ticket.getCheckInTime().toString());
+            }
+
+            for (int i = 0; i < headers.length; i++) sheet.autoSizeColumn(i);
+
+            wb.write(response.getOutputStream());
+            response.flushBuffer();
+        }
+    }
+
+
+    private static String safeStr(String s) {
+        return s == null ? "" : s;
     }
 
     /**
@@ -412,6 +551,7 @@ public class TicketService {
 
         // 演出信息
         if (ticket.getPerformance() != null) {
+            dto.setPerformanceId(ticket.getPerformance().getId());
             dto.setPerformanceTitle(ticket.getPerformance().getTitle());
             dto.setPerformancePosterUrl(AvatarUrlUtil.buildAvatarUrl(ticket.getPerformance().getPosterUrl(), fileBaseUrl));
         }
@@ -428,7 +568,6 @@ public class TicketService {
             }
 
             // 补充：查询该场次对应的电子票背景图 (仅上架状态)
-            // 这样前端拿到 DTO 就能直接渲染漂亮的电子票卡片了
             ticketTemplateRepository.findBySessionIdAndStatus(session.getId(), 1)
                     .ifPresent(tpl -> dto.setTicketBgUrl(AvatarUrlUtil.buildAvatarUrl(tpl.getBackgroundImgUrl(), fileBaseUrl)));
         }

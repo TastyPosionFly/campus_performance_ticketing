@@ -56,6 +56,7 @@ public class PerformanceDetailDto {
 
         dto.setSessions(performance.getSessions().stream().map(session -> {
             SessionCmd sessionCmd = new SessionCmd();
+            sessionCmd.setSessionId(session.getId());
             sessionCmd.setVenueId(session.getVenue().getId());
             sessionCmd.setVenueName(session.getVenue().getName());
             sessionCmd.setStartTime(session.getStartTime());

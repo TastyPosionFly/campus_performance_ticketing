@@ -10,9 +10,14 @@ import org.example.campus_performance_ticketing.dao.PerformanceRepository;
 import org.example.campus_performance_ticketing.dao.UserRepository;
 import org.example.campus_performance_ticketing.logic.dto.ApiResponse;
 import org.example.campus_performance_ticketing.logic.dto.performance_recommendation.CreateRecommendationCmd;
+import org.example.campus_performance_ticketing.logic.dto.performance_recommendation.PerformanceRecommendationAdminDTO;
 import org.example.campus_performance_ticketing.model.Performance;
 import org.example.campus_performance_ticketing.model.PerformanceRecommendation;
 import org.example.campus_performance_ticketing.model.UserInfo;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,6 +37,12 @@ public class PerformanceRecommendationService {
     private static final String ROLE_ADMIN = "ADMIN";
     private static final String ROLE_SUPER_ADMIN = "SUPER_ADMIN";
 
+    /**
+     * 添加推荐位
+     * @param operatorOpenId
+     * @param cmd
+     * @return
+     */
     @Transactional(rollbackFor = Exception.class)
     public ApiResponse<Void> addRecommendation(@NotBlank String operatorOpenId,
                                                @Valid CreateRecommendationCmd cmd) {
@@ -78,7 +89,12 @@ public class PerformanceRecommendationService {
         }
     }
 
-    // ... 其他方法保持不变 (deleteRecommendation, getActiveRecommendations 等) ...
+    /**
+     * 删除/下架推荐位
+     * @param operatorOpenId
+     * @param recommendationId
+     * @return
+     */
     @Transactional(rollbackFor = Exception.class)
     public ApiResponse<Void> deleteRecommendation(@NotBlank String operatorOpenId, @NotNull Long recommendationId) {
         try {
@@ -93,16 +109,60 @@ public class PerformanceRecommendationService {
         }
     }
 
+    /**
+     * 获取当前有效的推荐列表（前端展示用）
+     * @param type
+     * @return
+     */
     @Transactional(readOnly = true)
     public ApiResponse<List<PerformanceRecommendation>> getActiveRecommendations(@NotNull Integer type) {
         return ApiResponse.success(recommendationRepository.findActiveRecommendations(type, LocalDateTime.now()));
     }
 
+    /**
+     * 获取所有推荐配置（后台管理用）
+     * @param operatorOpenId
+     * @param type
+     * @return
+     */
     @Transactional(readOnly = true)
-    public ApiResponse<List<PerformanceRecommendation>> getAllRecommendationsConfig(@NotBlank String operatorOpenId, @NotNull Integer type) {
+    public ApiResponse<Page<PerformanceRecommendationAdminDTO>> getAllRecommendationsConfig(
+            String operatorOpenId,
+            Integer type,
+            int page,
+            int size
+    ) {
         try {
             validateAdminPermission(operatorOpenId);
-            return ApiResponse.success(recommendationRepository.findByTypeOrderByCreateTimeDesc(type));
+
+            Pageable pageable = PageRequest.of(
+                    page,
+                    size,
+                    Sort.by(Sort.Order.desc("sortOrder"), Sort.Order.desc("id"))
+            );
+
+            Page<PerformanceRecommendation> entityPage =
+                    (type == null) ? recommendationRepository.findAll(pageable)
+                            : recommendationRepository.findByType(type, pageable);
+
+            Page<PerformanceRecommendationAdminDTO> dtoPage = entityPage.map(r -> {
+                PerformanceRecommendationAdminDTO dto = new PerformanceRecommendationAdminDTO();
+                dto.setId(r.getId());
+                dto.setType(r.getType());
+                dto.setSortOrder(r.getSortOrder());
+                dto.setStartTime(r.getStartTime());
+                dto.setEndTime(r.getEndTime());
+                dto.setCreateTime(r.getCreateTime());
+
+                if (r.getPerformance() != null) {
+                    dto.setPerformanceId(r.getPerformance().getId());
+                    dto.setPerformanceTitle(r.getPerformance().getTitle());
+                    dto.setPerformancePosterUrl(r.getPerformance().getPosterUrl());
+                }
+                return dto;
+            });
+
+            return ApiResponse.success(dtoPage);
         } catch (Exception e) {
             return ApiResponse.fail(e.getMessage());
         }

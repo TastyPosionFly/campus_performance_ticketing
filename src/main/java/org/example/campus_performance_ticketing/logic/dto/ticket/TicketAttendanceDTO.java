@@ -10,6 +10,9 @@ import java.time.LocalDateTime;
 @EqualsAndHashCode(callSuper = true)
 public class TicketAttendanceDTO extends PublicUserInfo {
 
+    /** 票 ID */
+    private Long ticketId;
+
     /** 学号 (仅学生或教职工可能有) */
     private String studentNo;
 

@@ -60,7 +60,7 @@ public class Ticket {
     private PerformanceSession session;
 
     /**
-     * 状态: 0-已预约 1-已核销 2-已取消 3-已失效
+     * 状态: 0-已预约 1-已核销 2-已失效 3-已取消
      */
     @Column(nullable = false)
     private Integer status;

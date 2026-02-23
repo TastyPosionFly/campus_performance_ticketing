@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
 
 @Data
 public  class SessionCmd {
+    private Long sessionId; // 更新时需要，新增时不需要
     @NotNull
     private Long venueId;
     private String venueName;

@@ -24,6 +24,9 @@ public class TicketDetailDTO {
     /** 演出标题 */
     private String performanceTitle;
 
+    /** 演出 ID */
+    private Long performanceId;
+
     /** 演出海报 URL */
     private String performancePosterUrl;
 

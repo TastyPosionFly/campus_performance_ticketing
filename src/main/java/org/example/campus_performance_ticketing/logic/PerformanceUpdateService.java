@@ -1,5 +1,6 @@
 package org.example.campus_performance_ticketing.logic;
 
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
@@ -10,6 +11,7 @@ import org.example.campus_performance_ticketing.logic.dto.performance.*;
 import org.example.campus_performance_ticketing.model.*;
 import org.example.campus_performance_ticketing.util.AvatarUrlUtil;
 import org.example.campus_performance_ticketing.util.FileUtil;
+import org.example.campus_performance_ticketing.util.WeChatHelper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

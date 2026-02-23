@@ -2,6 +2,7 @@ package org.example.campus_performance_ticketing.logic;
 
 import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.JoinType;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.example.campus_performance_ticketing.dao.OrganizationInfoRepository;
@@ -11,6 +12,7 @@ import org.example.campus_performance_ticketing.logic.dto.ApiResponse;
 import org.example.campus_performance_ticketing.logic.dto.performance.PerformanceDetailDto;
 import org.example.campus_performance_ticketing.model.*;
 import org.example.campus_performance_ticketing.util.AvatarUrlUtil;
+import org.example.campus_performance_ticketing.util.WeChatHelper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -35,6 +37,15 @@ public class PerformanceSearchService {
     private final PerformanceRepository performanceRepository;
     private final PerformanceStatsRepository statsRepository;
     private final OrganizationInfoRepository organizationRepository;
+
+    private final WeChatHelper weChatHelper;
+
+    @Value("${wechat.appid}")
+    private String wechatAppid;
+
+    @Value("${wechat.secret}")
+    private String wechatSecret;
+
 
     @Value("${file.base.url}")
     private String baseUrl;
@@ -162,6 +173,42 @@ public class PerformanceSearchService {
         } catch (Exception e) {
             return ApiResponse.fail("获取演出详情失败: " + e.getMessage());
         }
+    }
+
+
+    /**
+     * 生成演出小程序码并写回响应
+     * 规则：
+     * 1. 演出必须存在，否则返回 404 错误。
+     * 2. scene 参数控制在 32 字符内，格式为 "id=123"。
+     * 3. 调用 WeChatHelper 获取小程序码 PNG bytes。
+     * 4. 设置响应 Content-Type 为 image/png，并写回 PNG 数据。
+     */
+    @Transactional(readOnly = true)
+    public void writePerformanceWxaCodeToResponse(Long performanceId, HttpServletResponse response) throws Exception {
+        // 1) 用 repository 校验演出是否存在（更轻量）
+        boolean exists = performanceRepository.existsById(performanceId);
+        if (!exists) {
+            response.sendError(HttpServletResponse.SC_NOT_FOUND, "演出不存在");
+            return;
+        }
+
+        // 2) scene 控制在 32 字符内
+        String scene = "id=" + performanceId;
+
+        // 3) 调微信生成小程序码（PNG bytes）
+        byte[] png = weChatHelper.getWxaCodeUnlimited(
+                scene,
+                "pages/performance/detail",
+                wechatAppid,
+                wechatSecret
+        );
+
+        // 4) 写回 PNG
+        response.setContentType("image/png");
+        response.setHeader("Cache-Control", "no-store");
+        response.getOutputStream().write(png);
+        response.flushBuffer();
     }
 
     /**

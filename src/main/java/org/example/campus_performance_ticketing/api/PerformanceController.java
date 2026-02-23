@@ -1,6 +1,7 @@
 package org.example.campus_performance_ticketing.api;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.example.campus_performance_ticketing.logic.PerformanceApplyService;
@@ -152,5 +153,27 @@ public class PerformanceController {
     @GetMapping("/{id}")
     public ApiResponse<PerformanceDetailDto> getPerformanceDetail(@PathVariable Long id) {
         return performanceSearchService.getPerformanceDetail(id);
+    }
+
+    /**
+     * 获取演出小程序码（二维码）
+     * @param request
+     * @param response
+     * @param id
+     * @throws Exception
+     */
+    @GetMapping(value = "/{id}/wxacode", produces = MediaType.IMAGE_PNG_VALUE)
+    public void getPerformanceWxaCode(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            @PathVariable Long id
+    ) throws Exception {
+        // 详情页需要登录：生成二维码也建议要求登录（至少要求已登录用户）
+        String openId = (String) request.getAttribute("openid");
+        if (openId == null || openId.isBlank()) {
+            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "未登录");
+            return;
+        }
+        performanceSearchService.writePerformanceWxaCodeToResponse(id, response);
     }
 }

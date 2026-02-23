@@ -10,7 +10,9 @@ import org.example.campus_performance_ticketing.logic.RecommendationAggregationS
 import org.example.campus_performance_ticketing.logic.dto.ApiResponse;
 import org.example.campus_performance_ticketing.logic.dto.performance_recommendation.CreateRecommendationCmd;
 import org.example.campus_performance_ticketing.logic.dto.performance_recommendation.PerformanceCardDto;
+import org.example.campus_performance_ticketing.logic.dto.performance_recommendation.PerformanceRecommendationAdminDTO;
 import org.example.campus_performance_ticketing.model.PerformanceRecommendation;
+import org.springframework.data.domain.Page;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -99,10 +101,13 @@ public class RecommendationController {
      * @param type 推荐类型
      */
     @GetMapping("/admin/config/list")
-    public ApiResponse<List<PerformanceRecommendation>> getAllConfigs(
+    public ApiResponse<Page<PerformanceRecommendationAdminDTO>> getAllConfigs(
             HttpServletRequest request,
-            @RequestParam @NotNull Integer type) {
+            @RequestParam(required = false) Integer type,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    ) {
         String openId = (String) request.getAttribute("openid");
-        return recommendationService.getAllRecommendationsConfig(openId, type);
+        return recommendationService.getAllRecommendationsConfig(openId, type, page, size);
     }
 }

@@ -1,11 +1,17 @@
 package org.example.campus_performance_ticketing.util;
 
+import org.springframework.http.*;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonNode;
 
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.logging.Logger;
 
 /**
@@ -19,6 +25,9 @@ public class WeChatHelper {
     private final ObjectMapper objectMapper;
 
     private static final Logger logger = Logger.getLogger(WeChatHelper.class.getName());
+
+    private volatile String cachedAccessToken;
+    private volatile long accessTokenExpireAtEpochSec = 0;
 
     public WeChatHelper() {
         SimpleClientHttpRequestFactory rf = new SimpleClientHttpRequestFactory();
@@ -98,6 +107,82 @@ public class WeChatHelper {
         } else {
             // 未提供 code，无法验证
             return new ValidationResult(false, "未提供 code，无法验证 openid 的真实性", null);
+        }
+    }
+
+    private String getAccessToken(String appid, String secret) {
+        long now = Instant.now().getEpochSecond();
+        if (cachedAccessToken != null && now < accessTokenExpireAtEpochSec - 60) { // 提前 60s 过期
+            return cachedAccessToken;
+        }
+
+        String url = String.format(
+                "https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=%s&secret=%s",
+                appid, secret
+        );
+
+        String resp = restTemplate.getForObject(url, String.class);
+        if (resp == null) throw new IllegalStateException("获取 access_token 失败：响应为空");
+
+        try {
+            JsonNode node = objectMapper.readTree(resp);
+            if (node.has("errcode") && node.get("errcode").asInt() != 0) {
+                throw new IllegalStateException("获取 access_token 失败: " + resp);
+            }
+            String token = node.get("access_token").asText(null);
+            int expiresIn = node.get("expires_in").asInt(0);
+            if (token == null || token.isBlank() || expiresIn <= 0) {
+                throw new IllegalStateException("获取 access_token 失败: " + resp);
+            }
+
+            cachedAccessToken = token;
+            accessTokenExpireAtEpochSec = now + expiresIn;
+            return token;
+        } catch (Exception e) {
+            throw new IllegalStateException("解析 access_token 响应失败: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 获取小程序码（不限量）PNG bytes
+     * @param scene 最长 32 字符，建议 "id=123"
+     * @param page  你的小程序页面路径：pages/performance/detail
+     */
+    public byte[] getWxaCodeUnlimited(String scene, String page, String appid, String secret) {
+        if (scene == null || scene.isBlank()) throw new IllegalArgumentException("scene 不能为空");
+        if (scene.length() > 32) throw new IllegalArgumentException("scene 长度不能超过 32");
+        if (page == null || page.isBlank()) throw new IllegalArgumentException("page 不能为空");
+
+        String accessToken = getAccessToken(appid, secret);
+        String url = "https://api.weixin.qq.com/wxa/getwxacodeunlimit?access_token=" + accessToken;
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("scene", scene);
+        body.put("page", page);
+        body.put("check_path", false);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
+
+        try {
+            ResponseEntity<byte[]> resp = restTemplate.exchange(url, HttpMethod.POST, entity, byte[].class);
+            byte[] bytes = resp.getBody();
+            if (bytes == null || bytes.length == 0) {
+                throw new IllegalStateException("获取小程序码失败：响应为空");
+            }
+
+            // 微信在出错时会返回 JSON（不是图片），这里做一下识别，避免把错误 JSON 当 PNG 返回
+            String ct = resp.getHeaders().getFirst(HttpHeaders.CONTENT_TYPE);
+            if (ct != null && ct.contains("application/json")) {
+                String errJson = new String(bytes, StandardCharsets.UTF_8);
+                throw new IllegalStateException("获取小程序码失败: " + errJson);
+            }
+
+            return bytes;
+        } catch (RestClientException e) {
+            throw new IllegalStateException("请求微信小程序码接口失败: " + e.getMessage(), e);
         }
     }
 }

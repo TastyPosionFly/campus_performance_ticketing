@@ -1,6 +1,8 @@
 package org.example.campus_performance_ticketing.dao;
 
 import org.example.campus_performance_ticketing.model.PerformanceRecommendation;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -36,4 +38,12 @@ public interface PerformanceRecommendationRepository extends JpaRepository<Perfo
      * 简单的查询所有，按创建时间倒序
      */
     List<PerformanceRecommendation> findByTypeOrderByCreateTimeDesc(Integer type);
+
+    /**
+     * 分页查询所有推荐位配置，按创建时间倒序
+     * @param type
+     * @param pageable
+     * @return
+     */
+    Page<PerformanceRecommendation> findByType(Integer type, Pageable pageable);
 }

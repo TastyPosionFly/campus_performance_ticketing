@@ -7,6 +7,7 @@ import org.example.campus_performance_ticketing.logic.dto.application.Applicatio
 import org.example.campus_performance_ticketing.logic.dto.application.PendingApplicationDto;
 import org.example.campus_performance_ticketing.logic.dto.application.ApplicationAuditCommand;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -44,7 +45,7 @@ public class ApplicationController {
      * GET /api/application/list?applicationType=CREATE_ORG&status=1
      */
     @GetMapping("/list")
-    public ApiResponse<org.springframework.data.domain.Page<PendingApplicationDto>> listApplications(
+    public ApiResponse<Page<PendingApplicationDto>> listApplications(
             HttpServletRequest request,
             @RequestParam(required = false) String applicationType,
             @RequestParam(required = false) Integer status,

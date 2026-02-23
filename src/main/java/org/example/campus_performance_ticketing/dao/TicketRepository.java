@@ -3,6 +3,7 @@ package org.example.campus_performance_ticketing.dao;
 import org.example.campus_performance_ticketing.model.Ticket;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -41,6 +42,51 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
      */
     Page<Ticket> findByUserIdAndStatusOrderByCreatedAtDesc(Long userId, Integer status, Pageable pageable);
 
+    /**
+     * 分页查找某用户在特定演出下的票据，按创建时间倒序
+     * @param userId
+     * @param performanceId
+     * @param pageable
+     * @return
+     */
+    Page<Ticket> findByUserIdAndPerformanceIdAndStatusOrderByCreatedAtDesc (Long userId, Long performanceId, Integer status, Pageable pageable);
+
+    /**
+     * 分页查找某用户在特定演出下的所有票据，按创建时间倒序
+     * @param userId
+     * @param performanceId
+     * @param pageable
+     * @return
+     */
+    Page<Ticket> findByUserIdAndPerformanceIdOrderByCreatedAtDesc (Long userId, Long performanceId, Pageable pageable);
+
+
+    /**
+     * 分页查找某用户的票据，按“即将开始时间”排序（升序），已过期的票排在后面（降序）
+     * @param userId
+     * @param performanceId
+     * @param status
+     * @param pageable
+     * @return
+     */
+    @Query("""
+    select t
+    from Ticket t
+    join t.session s
+    where t.user.id = :userId
+      and (:performanceId is null or s.performance.id = :performanceId)
+      and (:status is null or t.status = :status)
+    order by
+      case when s.startTime >= CURRENT_TIMESTAMP then 0 else 1 end,
+      case when s.startTime >= CURRENT_TIMESTAMP then s.startTime end asc,
+      case when s.startTime <  CURRENT_TIMESTAMP then s.startTime end desc
+    """)
+    Page<Ticket> findMyTicketsOrderByUpcomingStartTime(
+            @Param("userId") Long userId,
+            @Param("performanceId") Long performanceId,
+            @Param("status") Integer status,
+            Pageable pageable
+    );
 
     /**
      * 根据票据码查找票据
@@ -49,11 +95,11 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
     Optional<Ticket> findByTicketCode(String ticketCode);
 
     /**
-     * 批量将某场次下所有状态为“已预约(0)”的票据更新为“已失效(3)”
+     * 批量将某场次下所有状态为“已预约(0)”的票据更新为“已失效(2)”
      * 场景：演出结束后清理未核销的票
      */
     @Modifying
-    @Query("UPDATE Ticket t SET t.status = 3 WHERE t.session.id = :sessionId AND t.status = 0")
+    @Query("UPDATE Ticket t SET t.status = 2 WHERE t.session.id = :sessionId AND t.status = 0")
     int expireTicketsBySessionId(Long sessionId);
 
     /**
@@ -69,6 +115,16 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
      */
     @Query("SELECT t FROM Ticket t JOIN FETCH t.user WHERE t.session.id = :sessionId AND t.status = :status")
     List<Ticket> findBySessionIdAndStatusWithUser(Long sessionId, Integer status);
+
+    /**
+     * 分页查找某场次下特定状态的票据，带用户信息（使用 EntityGraph 预加载 UserInfo）
+     * @param sessionId
+     * @param status
+     * @param pageable
+     * @return
+     */
+    @EntityGraph(attributePaths = {"user"})
+    Page<Ticket> findBySessionIdAndStatus(Long sessionId, Integer status, Pageable pageable);
 
     /**
      * 【新增】统计某演出(跨场次)所有实际核销的票数
